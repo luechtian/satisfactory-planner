@@ -541,6 +541,8 @@ button, input, select { font: inherit; color: inherit; }
   box-shadow: var(--node-shadow);
 }
 .hub--short { border-color: var(--neg); }
+.hub { cursor: grab; }
+.hub:active { cursor: grabbing; }
 .hub__name { font-weight: 600; white-space: nowrap; }
 .hub__flow {
   display: flex;

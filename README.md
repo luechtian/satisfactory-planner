@@ -43,7 +43,8 @@ sub-factories rather than a shared pool. A machine that recycles its own input, 
 Blender making Encased Uranium Cells, is shown as a net consumer until you wire one of
 those ports; then both run at gross rates so the returned fluid can go where you send it.
 You can wire straight to a manifold too, which puts that machine on the pool and shows
-both its arms rather than one netted figure.
+both its arms rather than one netted figure. Manifolds, imports, exports and targets can
+all be dragged where you want them; **Tidy layout** puts them back.
 
 ## Quick start
 

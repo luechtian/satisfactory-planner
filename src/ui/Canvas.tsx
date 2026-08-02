@@ -272,10 +272,12 @@ export function Canvas({
         nodes.push({
           id: h.id,
           type: "hub",
-          position: { x: h.x, y: h.y },
-          draggable: false,
+          // Auto-placed in the gutter until dragged, then remembered — same treatment
+          // as the derived sink and source nodes, and cleared alike by Tidy.
+          position: site.sinkPositions?.[h.id] ?? { x: h.x, y: h.y },
+          // Still not deletable: there is no stored record to remove, only the flows
+          // that produced it.
           deletable: false,
-          selectable: false,
           data: { db, item: h.item, supply: h.supply, demand: h.demand },
         });
       }
