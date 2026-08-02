@@ -120,6 +120,8 @@ export interface Site {
    * the consuming site's import, so this is not a second copy of anything.
    */
   sinkPositions?: Record<string, { x: number; y: number }>;
+  /** where this site sits on the All-sites map, once dragged */
+  mapPosition?: { x: number; y: number };
   /**
    * Belts drawn by hand.
    *

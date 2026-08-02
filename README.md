@@ -35,7 +35,9 @@ Re-run it after a game update to pick up new or changed recipes.
   you are on stays visible so folding never loses your place. The **⌕ button** finds a
   site by name or group — arrows to move, Enter to jump.
 
-- **All sites** is the overview tab: total power, raw extraction rolled up across every
+- **All sites** is the overview tab. It opens with a **map**: one node per site, linked
+  imports as arrows, laid out by how deep each site sits in the supply chain. Drag to
+  arrange, click to open. Below it: total power, raw extraction rolled up across every
   site, per-group power subtotals, and which items cross a boundary — split into what nothing covers, what one
   site's surplus could supply to another, and what is simply spare. Site chips are
   clickable and jump straight there.

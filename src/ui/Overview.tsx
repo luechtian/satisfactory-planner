@@ -3,6 +3,7 @@ import type { Db } from "../core/data";
 import { groupSites, rank, summarisePlan, type ItemRollup } from "../core/overview";
 import { DISPLAY_EPS, fmt } from "../core/solver";
 import type { Plan } from "../core/types";
+import { SiteMap } from "./SiteMap";
 import { usePlan } from "../store/planStore";
 
 export function Overview({
@@ -32,6 +33,16 @@ export function Overview({
           />
         </div>
       </header>
+
+      {s.sites.length > 1 && (
+        <section className="overview__block">
+          <h2>Map</h2>
+          <p className="hint">
+            One node per site, linked imports as arrows. Drag to arrange; click to open.
+          </p>
+          <SiteMap db={db} plan={plan} summary={s} onOpenSite={onOpenSite} />
+        </section>
+      )}
 
       <section className="overview__block">
         <h2>Between sites</h2>

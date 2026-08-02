@@ -43,6 +43,7 @@ interface PlanState {
   renameSite: (id: string, name: string, group?: string) => void;
   /** move a site to a new index in the tab order */
   moveSite: (id: string, toIndex: number) => void;
+  setMapPosition: (id: string, position: { x: number; y: number }) => void;
   removeSite: (id: string) => void;
 
   addNode: (recipe: string, position?: { x: number; y: number }) => void;
@@ -118,6 +119,7 @@ export const usePlan = create<PlanState>()(
               ),
             },
           })),
+        setMapPosition: (id, position) => mutateSite(id, (s) => ({ ...s, mapPosition: position })),
         moveSite: (id, toIndex) =>
           set((st) => {
             const sites = [...st.plan.sites];

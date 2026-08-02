@@ -220,6 +220,38 @@ button, input, select { font: inherit; color: inherit; }
 .chip--pos b { color: var(--pos); }
 .chip--neg b { color: var(--neg); }
 
+.sitemap {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.sitenode {
+  min-width: 170px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: .5rem .65rem;
+  box-shadow: var(--node-shadow);
+  cursor: pointer;
+  font-size: .78rem;
+}
+.sitenode:hover { border-color: var(--accent); }
+.sitenode--short { border-color: var(--neg); }
+.sitenode--on { box-shadow: 0 0 0 1px var(--accent); }
+.sitenode__group {
+  color: var(--muted);
+  font-size: .6rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 600;
+}
+.sitenode__name { font-weight: 600; font-size: .88rem; }
+.sitenode__power { color: var(--accent); font-variant-numeric: tabular-nums; }
+.sitenode__flags { display: flex; gap: .5rem; font-size: .7rem; margin-top: .15rem; }
+.sitenode__unmet { color: var(--muted); font-size: .66rem; margin-top: .1rem; }
+.sitenode .react-flow__handle { width: 6px; height: 6px; background: var(--line); border: none; }
+
 .sitegroup { margin-bottom: 1.1rem; }
 .sitegroup__head {
   display: flex;
