@@ -56,6 +56,27 @@ so `http://localhost:5199` is effectively the filing cabinet. Consequences worth
 Italic port names on a node mean nothing on the canvas feeds or takes that item — it
 crosses the site boundary. A `by` tag marks a byproduct.
 
+## Hosting on GitHub Pages
+
+The build is fully static, so Pages serves it as-is. `.github/workflows/deploy.yml`
+builds and publishes on every push to `main`:
+
+1. Create the repo and push.
+2. Settings → Pages → Source: **GitHub Actions**.
+3. Lands at `https://<user>.github.io/<repo>/`.
+
+Two things make this work, both easy to break:
+
+- `base: "./"` in `vite.config.ts`. Pages serves project sites from `/<repo>/`, and
+  Vite's default absolute `/assets/...` would resolve to the domain root and 404 into
+  a blank page.
+- **`public/data.json` is committed.** The runner has no game install, so CI cannot run
+  the ETL. Regenerate and commit it after a game patch, or the hosted copy goes stale.
+
+Note that the deployed page is public, and it carries Coffee Stain's item and recipe
+names. That is what the game's `CommunityResources` folder exists for and what every
+community planner does, but it is worth knowing you are republishing game data.
+
 ## How the solver works
 
 Two passes, in `src/core/solver.ts`:
