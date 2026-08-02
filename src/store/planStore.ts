@@ -144,8 +144,12 @@ export const usePlan = create<PlanState>()(
         solve: (db) => {
           const result = solveSite(db, get().site());
           mutate((s) => {
-            const nodes = [
-              ...s.nodes.map((n) => ({ ...n, count: result.counts[n.id] ?? n.count })),
+            const nodes: PlanNode[] = [
+              ...s.nodes.map((n) => ({
+                ...n,
+                count: result.counts[n.id] ?? n.count,
+                clock: result.clocks[n.id] ?? n.clock,
+              })),
               ...result.added,
             ];
             // Solver-added nodes land in a cramped row, so re-flow the whole site.

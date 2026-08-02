@@ -37,9 +37,10 @@ export function ExtractorNodeView({ data, selected }: NodeProps & { data: Extrac
       <div className="node__controls nodrag">
         <label>
           Anzahl
+          {/* Whole buildings only — a part-machine is expressed as a lower clock. */}
           <input
-            type="number" min={0} step={1} value={round(node.count)}
-            onChange={(e) => onChange({ count: Math.max(0, Number(e.target.value) || 0) })}
+            type="number" min={0} step={1} value={node.count}
+            onChange={(e) => onChange({ count: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
           />
         </label>
         <label>

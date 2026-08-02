@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Db } from "../core/data";
-import { fmt } from "../core/solver";
+import { DISPLAY_EPS, fmt } from "../core/solver";
 import type { Site, SiteResult } from "../core/types";
 import { usePlan } from "../store/planStore";
 
@@ -11,8 +11,8 @@ export function BalancePanel({ db, site, result }: { db: Db; site: Site; result:
   // Raws have their own section with editable supply, so listing them here too would
   // just be noise — every ore would sit in shortages permanently.
   const isRaw = (item: string) => !!db.items[item]?.isRawResource;
-  const shortages = result.balances.filter((b) => b.net < -1e-6 && !isRaw(b.item));
-  const surpluses = result.balances.filter((b) => b.net > 1e-6 && !isRaw(b.item));
+  const shortages = result.balances.filter((b) => b.net < -DISPLAY_EPS && !isRaw(b.item));
+  const surpluses = result.balances.filter((b) => b.net > DISPLAY_EPS && !isRaw(b.item));
 
   return (
     <aside className="panel panel--right">
@@ -98,7 +98,7 @@ function RawSupply({
             // Gross demand, not net — netting extraction out of it hid the fact that a
             // miner was covering the resource at all.
             const need = b.consumed + b.target;
-            const short = b.net < -1e-6;
+            const short = b.net < -DISPLAY_EPS;
             return (
               <tr key={b.item}>
                 <td>{db.itemName(b.item)}</td>

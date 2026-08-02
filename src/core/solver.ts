@@ -8,6 +8,14 @@ import type {
 
 const EPS = 1e-6;
 
+/**
+ * Threshold for calling a balance short or spare. Deliberately looser than EPS: whole
+ * machines mean clocks land on 4 decimals, so rates carry a ten-thousandth of leftover
+ * that is neither real nor actionable. Anything under a thousandth of an item per
+ * minute is noise.
+ */
+export const DISPLAY_EPS = 1e-3;
+
 /** count * clock/100 — how many 100%-machines a node is worth. */
 export const effectiveOf = (n: PlanNode) => n.count * (n.clock / 100);
 
@@ -96,8 +104,10 @@ export function evaluateSite(db: Db, site: Site): SiteResult {
 /* ------------------------------------------------------------- backward */
 
 export interface SolveResult {
-  /** node id -> new machine count */
+  /** node id -> new machine count, always a whole number */
   counts: Record<string, number>;
+  /** node id -> clock that makes those whole machines hit the required rate */
+  clocks: Record<string, number>;
   /** nodes the solver had to invent because nothing on the canvas made the item */
   added: PlanNode[];
   /** items nothing can produce — raw ores, or a missing recipe */
@@ -249,6 +259,7 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
   }
 
   const counts: Record<string, number> = {};
+  const clocks: Record<string, number> = {};
   const added: PlanNode[] = [];
   let lane = 0;
 
@@ -259,14 +270,17 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
       const total = existing.reduce((s, n) => s + n.count, 0);
       for (const n of existing) {
         const share = total > EPS ? n.count / total : 1 / existing.length;
-        counts[n.id] = round4((rate * share) / (n.clock / 100));
+        const fit = fitMachines(rate * share, n.clock);
+        counts[n.id] = fit.count;
+        clocks[n.id] = fit.clock;
       }
     } else {
+      const fit = fitMachines(rate, 100);
       added.push({
         id: `n${Date.now().toString(36)}${lane}`,
         recipe: rc,
-        count: round4(rate),
-        clock: 100,
+        count: fit.count,
+        clock: fit.clock,
         position: { x: 40 + (lane % 4) * 300, y: 40 + Math.floor(lane / 4) * 220 },
       });
       lane++;
@@ -279,7 +293,9 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
   }
 
   // Re-run the forward pass over the solved plan to see what is still missing.
-  const scaled = site.nodes.map((n) => ({ ...n, count: counts[n.id] ?? n.count }) as PlanNode);
+  const scaled = site.nodes.map(
+    (n) => ({ ...n, count: counts[n.id] ?? n.count, clock: clocks[n.id] ?? n.clock }) as PlanNode,
+  );
   let solved: Site = { ...site, nodes: [...scaled, ...added] };
   let balances = evaluateSite(db, solved).balances;
 
@@ -289,7 +305,7 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
   // one behind their back would fight a deliberate choice.
   if (opts.autoExtractors !== false) {
     for (const b of balances) {
-      if (b.net >= -EPS || !db.items[b.item]?.isRawResource) continue;
+      if (b.net >= -DISPLAY_EPS || !db.items[b.item]?.isRawResource) continue;
       if (extractorsByResource.has(b.item)) continue;
 
       const building = defaultExtractorFor(db, b.item);
@@ -297,14 +313,15 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
       const perMachine = extractorRateFor(db, building, DEFAULT_PURITY);
       if (perMachine <= 0) continue;
 
+      const fit = fitMachines(-b.net / perMachine, 100);
       added.push({
         kind: "extractor",
         id: `x${Date.now().toString(36)}${lane}`,
         building,
         resource: b.item,
         purity: DEFAULT_PURITY,
-        count: round4(-b.net / perMachine),
-        clock: 100,
+        count: fit.count,
+        clock: fit.clock,
         position: { x: 40 + (lane % 4) * 300, y: 40 + Math.floor(lane / 4) * 220 },
       });
       lane++;
@@ -314,10 +331,10 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
   }
 
   const feeds = balances
-    .filter((b) => b.net < -EPS)
+    .filter((b) => b.net < -DISPLAY_EPS)
     .map((b) => ({ item: b.item, perMinute: -b.net }));
 
-  return { counts, added, feeds, diverged };
+  return { counts, clocks, added, feeds, diverged };
 }
 
 /**
@@ -385,7 +402,26 @@ function solveExact(
   return out;
 }
 
-const round4 = (v: number) => Math.round(v * 10000) / 10000;
+/**
+ * Turn a fractional machine requirement into something you can actually build.
+ *
+ * You cannot place 1.5 Refineries. The fractional part becomes one more machine running
+ * slower, so 1.5 becomes 2 at 75% — which hits the same throughput, and draws less power
+ * than 1 at 100% plus 1 at 50% because power scales superlinearly with clock.
+ *
+ * `maxClock` is the node's existing clock, treated as intent rather than a fixed value:
+ * left at the default 100 the result never overclocks, but a node deliberately set to
+ * 250% keeps its shards and just needs fewer buildings.
+ */
+export function fitMachines(rate: number, maxClock: number): { count: number; clock: number } {
+  if (rate <= EPS) return { count: 0, clock: maxClock };
+  // Nudge by EPS so a clean 6.0000000001 does not demand a seventh machine.
+  const count = Math.max(1, Math.ceil(rate / (maxClock / 100) - EPS));
+  // The game only accepts 4 decimal places of clock, so 2.5 machines is 3 x 83.3333%,
+  // not exactly 2.5. Round that up rather than to nearest: a hair of overproduction is
+  // invisible, whereas under-delivering shows up as a phantom shortage in red.
+  return { count, clock: Math.ceil((rate / count) * 1e6) / 1e4 };
+}
 
 /** Trailing zeros make a balance table much harder to scan. */
 export function fmt(v: number, digits = 2): string {

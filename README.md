@@ -34,6 +34,10 @@ Re-run it after a game update to pick up new or changed recipes.
   assumes a Miner Mk.3 on a normal-purity node, which you then adjust and re-solve.
   Extractor power counts toward the total.
 - **Anzahl / Clock %** on each node work like the spreadsheet, and every rate updates live.
+  Anzahl is always a whole number — you cannot build 1.5 Refineries. A fractional
+  requirement becomes one more machine running slower, so 1.5 machines' worth is shown
+  as 2 at 75%. Want the 2-at-100%-plus-1-at-50% arrangement instead? Add a second node
+  for the same recipe and set its clock; the balance treats them as one pool.
 - **Targets** (right panel) say what the site must ship out. **Solve for targets** works
   backwards through the chain, sets every machine count, adds any missing production
   steps, and places extractors for raws nothing covers — one click takes an empty canvas
@@ -106,6 +110,12 @@ wrong:
 - **Byproducts only credit, never justify.** A recipe is scaled for its primary product
   only. Otherwise asking for Silica scales Alumina Solution to 9 refineries to farm the
   byproduct instead of reaching for Raw Quartz.
+- **Machines are whole** (`fitMachines`). The solved rate is a fraction, so it is turned
+  into `ceil` machines at the clock that hits the rate exactly. That is both buildable
+  and cheaper than the fractional figure suggests: power scales with clock to the power
+  1.32, so 1 miner at 75% draws 30.8 MW where "0.75 miners" implied 33.8 MW. Clock is
+  rounded up to the game's 4 decimal places, so a plan never under-delivers by a
+  rounding hair and shows a phantom shortage.
 - **Loops close properly.** Alumina Solution drinks water that Aluminum Scrap hands back.
   The exact solve nets this out; the iterative pass alone overshoots, because rates only
   climb and one gets locked in before the credit arrives.
