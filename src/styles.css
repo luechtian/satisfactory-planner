@@ -220,6 +220,20 @@ button, input, select { font: inherit; color: inherit; }
 .chip--pos b { color: var(--pos); }
 .chip--neg b { color: var(--neg); }
 
+.sitegroup { margin-bottom: 1.1rem; }
+.sitegroup__head {
+  display: flex;
+  align-items: baseline;
+  gap: .6rem;
+  margin: 0 0 .45rem;
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-weight: 600;
+  color: var(--muted);
+}
+.sitegroup__power { color: var(--accent); font-variant-numeric: tabular-nums; }
+
 .sitecards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .6rem; }
 .sitecard {
   text-align: left;

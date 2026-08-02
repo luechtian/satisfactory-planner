@@ -52,6 +52,7 @@ export interface ItemRollup {
 export interface SiteSummary {
   id: string;
   name: string;
+  group?: string;
   machines: number;
   extractors: number;
   powerMW: number;
@@ -126,6 +127,7 @@ export function summarisePlan(db: Db, plan: Plan): PlanSummary {
     sites.push({
       id: site.id,
       name: site.name,
+      group: site.group,
       machines: site.nodes.filter((n) => n.kind !== "extractor").length,
       extractors: site.nodes.filter((n) => n.kind === "extractor").length,
       powerMW: result.totalPowerMW,
@@ -214,6 +216,33 @@ export function summarisePlan(db: Db, plan: Plan): PlanSummary {
         db.itemName(a.item).localeCompare(db.itemName(b.item)),
     ),
   };
+}
+
+/**
+ * Gather sites under their group for the summary.
+ *
+ * The tab bar treats a group as a heading over a *run*, because there the order is the
+ * point and a split group should look split. Here the question is "what does Nuclear
+ * draw", so members are collected wherever they sit and the subtotal covers all of
+ * them. The two only disagree while the tab order is untidy.
+ */
+export function groupSites(sites: SiteSummary[]): Array<{
+  group?: string;
+  sites: SiteSummary[];
+  powerMW: number;
+}> {
+  const order: Array<string | undefined> = [];
+  const byGroup = new Map<string | undefined, SiteSummary[]>();
+  for (const s of sites) {
+    if (!byGroup.has(s.group)) { byGroup.set(s.group, []); order.push(s.group); }
+    byGroup.get(s.group)!.push(s);
+  }
+  // Ungrouped sites last: a heading-less block reads as a footnote, not a lead.
+  order.sort((a, b) => Number(a === undefined) - Number(b === undefined));
+  return order.map((group) => {
+    const members = byGroup.get(group)!;
+    return { group, sites: members, powerMW: members.reduce((n, s) => n + s.powerMW, 0) };
+  });
 }
 
 /** 0 = short with no cover anywhere, 1 = a site could supply it, 2 = spare only. */

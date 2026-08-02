@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Db } from "../core/data";
-import { rank, summarisePlan, type ItemRollup } from "../core/overview";
+import { groupSites, rank, summarisePlan, type ItemRollup } from "../core/overview";
 import { DISPLAY_EPS, fmt } from "../core/solver";
 import type { Plan } from "../core/types";
 import { usePlan } from "../store/planStore";
@@ -147,23 +147,38 @@ export function Overview({
 
       <section className="overview__block">
         <h2>Per site</h2>
-        <div className="sitecards">
-          {s.sites.map((x) => (
-            <button key={x.id} className="sitecard" onClick={() => onOpenSite(x.id)}>
-              <div className="sitecard__name">{x.name}</div>
-              <div className="sitecard__power">{fmt(x.powerMW, 1)} MW</div>
-              <div className="sitecard__meta muted">
-                {x.machines} machine{x.machines === 1 ? "" : "s"}
-                {x.extractors > 0 && ` · ${x.extractors} extractor${x.extractors === 1 ? "" : "s"}`}
-              </div>
-              <div className="sitecard__flags">
-                {x.shortages > 0 && <span className="neg">{x.shortages} short</span>}
-                {x.surpluses > 0 && <span className="pos">{x.surpluses} spare</span>}
-                {!x.shortages && !x.surpluses && <span className="muted">balanced</span>}
-              </div>
-            </button>
-          ))}
-        </div>
+        {groupSites(s.sites).map((g) => (
+          <div className="sitegroup" key={g.group ?? "__none"}>
+            {g.group ? (
+              <h3 className="sitegroup__head">
+                {g.group}
+                <span className="sitegroup__power">{fmt(g.powerMW, 1)} MW</span>
+                <span className="muted">
+                  {g.sites.length} site{g.sites.length === 1 ? "" : "s"}
+                </span>
+              </h3>
+            ) : (
+              s.sites.some((x) => x.group) && <h3 className="sitegroup__head">Ungrouped</h3>
+            )}
+            <div className="sitecards">
+              {g.sites.map((x) => (
+                <button key={x.id} className="sitecard" onClick={() => onOpenSite(x.id)}>
+                  <div className="sitecard__name">{x.name}</div>
+                  <div className="sitecard__power">{fmt(x.powerMW, 1)} MW</div>
+                  <div className="sitecard__meta muted">
+                    {x.machines} machine{x.machines === 1 ? "" : "s"}
+                    {x.extractors > 0 && ` · ${x.extractors} extractor${x.extractors === 1 ? "" : "s"}`}
+                  </div>
+                  <div className="sitecard__flags">
+                    {x.shortages > 0 && <span className="neg">{x.shortages} short</span>}
+                    {x.surpluses > 0 && <span className="pos">{x.surpluses} spare</span>}
+                    {!x.shortages && !x.surpluses && <span className="muted">balanced</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </section>
     </div>
   );
