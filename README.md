@@ -62,8 +62,11 @@ The build is fully static, so Pages serves it as-is. `.github/workflows/deploy.y
 builds and publishes on every push to `main`:
 
 1. Create the repo and push.
-2. Settings → Pages → Source: **GitHub Actions**.
-3. Lands at `https://<user>.github.io/<repo>/`.
+2. **Settings → Pages → Source: "GitHub Actions".** Do this before the first run, or
+   `configure-pages` fails with `Get Pages site failed … Not Found`. The action has an
+   `enablement: true` input that looks like it would handle this, but it needs
+   admin/pages-write credentials the default `GITHUB_TOKEN` doesn't carry.
+3. Re-run the failed job. It lands at `https://<user>.github.io/<repo>/`.
 
 Two things make this work, both easy to break:
 
