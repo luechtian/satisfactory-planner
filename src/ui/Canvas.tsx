@@ -271,8 +271,21 @@ export function Canvas({
       const spare = new Map(supply.map((s) => [s.nodeId, s.rate]));
       const wanted = new Map(demand.map((d) => [d.nodeId, d.rate]));
 
+      // Wiring a port to the manifold is not a belt between two machines — it says
+      // "this one is on the pool", at gross rates, and lets the pooling below place it
+      // as usual. Useful for a machine that recycles its own input, which is otherwise
+      // netted onto a single side and can never show both flows.
+      const pooled = new Set<string>();
+      for (const c of drawn) {
+        if (c.item !== item) continue;
+        if (isHub(c.from)) pooled.add(c.to);
+        else if (isHub(c.to)) pooled.add(c.from);
+      }
+
       const mine = drawn.filter(
-        (c) => c.item === item && spare.has(c.from) && wanted.has(c.to),
+        (c) =>
+          c.item === item && !isHub(c.from) && !isHub(c.to) &&
+          spare.has(c.from) && wanted.has(c.to),
       );
       const alloc = mine.map((c) => {
         const flow = Math.min(spare.get(c.from)!, wanted.get(c.to)!);
@@ -353,7 +366,7 @@ export function Canvas({
           source: s.nodeId, target: hubId,
           sourceHandle: `out-${item}`, targetHandle: `in-${item}`,
           label: `${fmt(spare.get(s.nodeId)!)}/min`,
-          className: cls(false, false),
+          className: cls(false, pooled.has(s.nodeId)),
           deletable: false,
         });
       }
@@ -363,7 +376,7 @@ export function Canvas({
           source: hubId, target: d.nodeId,
           sourceHandle: `out-${item}`, targetHandle: `in-${item}`,
           label: `${fmt(wanted.get(d.nodeId)!)}/min`,
-          className: cls(isSynthetic(d.nodeId), false),
+          className: cls(isSynthetic(d.nodeId), pooled.has(d.nodeId)),
           deletable: false,
           animated: short,
         });
@@ -412,8 +425,8 @@ export function Canvas({
     return (
       !!item && item === itemOf(c.targetHandle) &&
       c.source !== c.target &&
-      // A manifold is generated, not wired — belts attach to real endpoints.
-      !c.source?.startsWith("hub:") && !c.target?.startsWith("hub:")
+      // Both ends being a manifold would say nothing.
+      !(isHub(c.source) && isHub(c.target))
     );
   };
 
@@ -457,6 +470,8 @@ export function Canvas({
     </ReactFlow>
   );
 }
+
+const isHub = (id: string | null | undefined) => !!id?.startsWith("hub:");
 
 const isSynthetic = (id: string) =>
   id.startsWith("target:") || id.startsWith("export:") ||

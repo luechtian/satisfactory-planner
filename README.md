@@ -42,6 +42,8 @@ wire something specific — that is how you say two water extractors are separat
 sub-factories rather than a shared pool. A machine that recycles its own input, like the
 Blender making Encased Uranium Cells, is shown as a net consumer until you wire one of
 those ports; then both run at gross rates so the returned fluid can go where you send it.
+You can wire straight to a manifold too, which puts that machine on the pool and shows
+both its arms rather than one netted figure.
 
 ## Quick start
 
