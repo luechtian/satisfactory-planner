@@ -210,12 +210,31 @@ export function Canvas({
       site.nodes.find((n) => n.id === id)?.position ??
       sinkPos.get(id) ?? srcPos.get(id) ?? { x: 0, y: 0 };
 
+    // Net each machine per item before deciding which side it is on. A Blender making
+    // Encased Uranium Cells drinks 40 Sulfuric Acid and hands 10 back, so it is a net
+    // consumer of 30 and belongs solely on the demand side. Listing it as both would
+    // invite an edge from itself to itself; excluding it from demand for being a
+    // producer — which is what this used to do — left its acid input unreachable to
+    // anything at all, by hand or otherwise.
+    const netBy = new Map<string, Map<string, number>>();
+    const bump = (item: string, nodeId: string, by: number) => {
+      const per = netBy.get(item) ?? new Map<string, number>();
+      per.set(nodeId, (per.get(nodeId) ?? 0) + by);
+      netBy.set(item, per);
+    };
+    for (const r of result.nodes) {
+      for (const p of r.outputs) bump(p.item, r.nodeId, p.perMinute);
+      for (const p of r.inputs) bump(p.item, r.nodeId, -p.perMinute);
+    }
+
     const supplyBy = new Map<string, Port[]>();
     const demandBy = new Map<string, Port[]>();
-    for (const r of result.nodes) {
-      const at = posOf(r.nodeId);
-      for (const p of r.outputs) push(supplyBy, p.item, { nodeId: r.nodeId, rate: p.perMinute, ...at });
-      for (const p of r.inputs) push(demandBy, p.item, { nodeId: r.nodeId, rate: p.perMinute, ...at });
+    for (const [item, perNode] of netBy) {
+      for (const [nodeId, net] of perNode) {
+        const at = posOf(nodeId);
+        if (net > DISPLAY_EPS) push(supplyBy, item, { nodeId, rate: net, ...at });
+        else if (net < -DISPLAY_EPS) push(demandBy, item, { nodeId, rate: -net, ...at });
+      }
     }
     for (const s of sinks) {
       const at = sinkPos.get(s.key) ?? { x: 0, y: 0 };
@@ -235,9 +254,7 @@ export function Canvas({
 
     for (const [item, allSupply] of supplyBy) {
       const supply = allSupply.filter((s) => s.rate > DISPLAY_EPS);
-      const demand = (demandBy.get(item) ?? []).filter(
-        (d) => d.rate > DISPLAY_EPS && !supply.some((s) => s.nodeId === d.nodeId),
-      );
+      const demand = (demandBy.get(item) ?? []).filter((d) => d.rate > DISPLAY_EPS);
       if (!supply.length || !demand.length) continue;
 
       const bal = result.balances.find((b) => b.item === item);
