@@ -8,6 +8,7 @@ import { BalancePanel } from "./ui/BalancePanel";
 import { Canvas } from "./ui/Canvas";
 import { Overview } from "./ui/Overview";
 import { Sidebar } from "./ui/Sidebar";
+import { SiteTabs } from "./ui/SiteTabs";
 import "./styles.css";
 
 export default function App() {
@@ -26,7 +27,7 @@ export default function App() {
 function Planner({ db }: { db: Db }) {
   const plan = usePlan((s) => s.plan);
   const activeSiteId = usePlan((s) => s.activeSiteId);
-  const { setActiveSite, addSite, renameSite, removeSite, replacePlan } = usePlan();
+  const { setActiveSite, replacePlan } = usePlan();
 
   const theme = usePlan((s) => s.theme);
   const toggleTheme = usePlan((s) => s.toggleTheme);
@@ -55,47 +56,13 @@ function Planner({ db }: { db: Db }) {
           Satisfactory Planner
         </div>
 
-        <nav className="tabs">
-          <button
-            className={`tab tab--overview ${overview ? "tab--active" : ""}`}
-            onClick={() => setOverview(true)}
-            title="Everything across all sites"
-          >
-            ◱ All sites
-          </button>
-          <span className="tabs__sep" />
-          {plan.sites.map((s) => (
-            <button
-              key={s.id}
-              className={`tab ${s.id === activeSiteId && !overview ? "tab--active" : ""}`}
-              onClick={() => { setOverview(false); setActiveSite(s.id); }}
-              onDoubleClick={() => {
-                const name = prompt("Site name", s.name);
-                if (name) renameSite(s.id, name);
-              }}
-              title="Double-click to rename"
-            >
-              {s.name}
-              {s.id === activeSiteId && !overview && plan.sites.length > 1 && (
-                <span
-                  className="tab__x"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm(`Delete site "${s.name}"?`)) removeSite(s.id);
-                  }}
-                >
-                  ×
-                </span>
-              )}
-            </button>
-          ))}
-          <button
-            className="tab tab--add"
-            onClick={() => { setOverview(false); addSite(`Site ${plan.sites.length + 1}`); }}
-          >
-            +
-          </button>
-        </nav>
+        <SiteTabs
+          plan={plan}
+          activeSiteId={activeSiteId}
+          overview={overview}
+          onOpenOverview={() => setOverview(true)}
+          onOpenSite={(id) => { setOverview(false); setActiveSite(id); }}
+        />
 
         <div className="io">
           <button

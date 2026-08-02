@@ -104,6 +104,11 @@ export interface PlanFlow {
 export interface Site {
   id: string;
   name: string;
+  /**
+   * Optional heading shown in the tab bar. Sites keep one flat order; a group is only
+   * a label that starts a run, so arranging them is the same act as reordering.
+   */
+  group?: string;
   nodes: PlanNode[];
   /** what this site must output, over and above internal consumption */
   targets: PlanFlow[];

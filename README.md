@@ -27,7 +27,11 @@ Re-run it after a game update to pick up new or changed recipes.
 
 ## Using it
 
-- **Sites** are the tabs across the top — one per factory location. Double-click to rename.
+- **Sites** are the tabs across the top — one per factory location. **Drag** a tab to
+  reorder. **Double-click** to rename, and prefix with a slash to head a group:
+  `Nuclear / Uranium prep`. A group is only a heading over a run of adjacent tabs, so
+  arranging sites and grouping them are the same act — split a group apart and you get
+  the heading twice, which is the point.
 - **All sites** is the overview tab: total power, raw extraction rolled up across every
   site, and which items cross a boundary — split into what nothing covers, what one
   site's surplus could supply to another, and what is simply spare. Site chips are

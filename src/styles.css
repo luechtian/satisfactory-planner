@@ -101,6 +101,21 @@ button, input, select { font: inherit; color: inherit; }
 
 .io { display: flex; gap: .4rem; }
 .tabs__sep { width: 1px; background: var(--line); align-self: stretch; margin: .4rem .3rem; flex: none; }
+.tabs__slot { display: flex; align-items: center; gap: .25rem; }
+.tabs__group {
+  color: var(--muted);
+  font-size: .64rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 600;
+  padding: 0 .1rem 0 .5rem;
+  border-left: 1px solid var(--line);
+  margin-left: .25rem;
+  white-space: nowrap;
+}
+.tabs__marker { width: 2px; align-self: stretch; margin: .35rem 0; background: var(--accent); border-radius: 1px; }
+.tab { user-select: none; }
+.tab--dragging { opacity: .4; }
 .tab--overview { font-weight: 500; }
 
 /* ---------------------------------------------------------------- overview */

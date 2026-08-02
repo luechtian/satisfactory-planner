@@ -37,7 +37,9 @@ interface PlanState {
   setSelectedNode: (id: string | null) => void;
 
   addSite: (name: string) => void;
-  renameSite: (id: string, name: string) => void;
+  renameSite: (id: string, name: string, group?: string) => void;
+  /** move a site to a new index in the tab order */
+  moveSite: (id: string, toIndex: number) => void;
   removeSite: (id: string) => void;
 
   addNode: (recipe: string, position?: { x: number; y: number }) => void;
@@ -97,10 +99,24 @@ export const usePlan = create<PlanState>()(
             const s = emptySite(name);
             return { plan: { ...st.plan, sites: [...st.plan.sites, s] }, activeSiteId: s.id };
           }),
-        renameSite: (id, name) =>
+        renameSite: (id, name, group) =>
           set((st) => ({
-            plan: { ...st.plan, sites: st.plan.sites.map((s) => (s.id === id ? { ...s, name } : s)) },
+            plan: {
+              ...st.plan,
+              sites: st.plan.sites.map((s) =>
+                s.id === id ? { ...s, name, group: group || undefined } : s,
+              ),
+            },
           })),
+        moveSite: (id, toIndex) =>
+          set((st) => {
+            const sites = [...st.plan.sites];
+            const from = sites.findIndex((s) => s.id === id);
+            if (from < 0) return st;
+            const [moved] = sites.splice(from, 1);
+            sites.splice(Math.max(0, Math.min(sites.length, toIndex)), 0, moved);
+            return { plan: { ...st.plan, sites } };
+          }),
         removeSite: (id) =>
           set((st) => {
             const sites = st.plan.sites.filter((s) => s.id !== id);
