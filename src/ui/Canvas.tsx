@@ -211,46 +211,50 @@ export function Canvas({
       sinkPos.get(id) ?? srcPos.get(id) ?? { x: 0, y: 0 };
 
     // Net each machine per item before deciding which side it is on. A Blender making
-    // Encased Uranium Cells drinks 40 Sulfuric Acid and hands 10 back, so it is a net
-    // consumer of 30 and belongs solely on the demand side. Listing it as both would
-    // invite an edge from itself to itself; excluding it from demand for being a
-    // producer — which is what this used to do — left its acid input unreachable to
-    // anything at all, by hand or otherwise.
-    const netBy = new Map<string, Map<string, number>>();
-    const bump = (item: string, nodeId: string, by: number) => {
-      const per = netBy.get(item) ?? new Map<string, number>();
-      per.set(nodeId, (per.get(nodeId) ?? 0) + by);
-      netBy.set(item, per);
+    // Encased Uranium Cells drinks 40 Sulfuric Acid and hands 10 back, so by default it
+    // is a net consumer of 30 and belongs solely on the demand side — listing it as both
+    // would invite an edge from itself to itself.
+    //
+    // Unless you have wired that port by hand. Drawing a belt off its acid output says
+    // the 10 goes somewhere specific, so the machine then appears on both sides at gross
+    // rates and the belt can carry what you asked it to.
+    const drawn = site.connections ?? [];
+    const flowBy = new Map<string, Map<string, { out: number; in: number }>>();
+    const bump = (item: string, nodeId: string, side: "out" | "in", by: number) => {
+      const per = flowBy.get(item) ?? new Map<string, { out: number; in: number }>();
+      const rec = per.get(nodeId) ?? { out: 0, in: 0 };
+      rec[side] += by;
+      per.set(nodeId, rec);
+      flowBy.set(item, per);
     };
     for (const r of result.nodes) {
-      for (const p of r.outputs) bump(p.item, r.nodeId, p.perMinute);
-      for (const p of r.inputs) bump(p.item, r.nodeId, -p.perMinute);
+      for (const p of r.outputs) bump(p.item, r.nodeId, "out", p.perMinute);
+      for (const p of r.inputs) bump(p.item, r.nodeId, "in", p.perMinute);
     }
 
     const supplyBy = new Map<string, Port[]>();
     const demandBy = new Map<string, Port[]>();
-    for (const [item, perNode] of netBy) {
-      for (const [nodeId, net] of perNode) {
+    for (const [item, perNode] of flowBy) {
+      for (const [nodeId, f] of perNode) {
         const at = posOf(nodeId);
+        const wired = drawn.some(
+          (c) => c.item === item && (c.from === nodeId || c.to === nodeId),
+        );
+        if (wired) {
+          if (f.out > DISPLAY_EPS) push(supplyBy, item, { nodeId, rate: f.out, ...at });
+          if (f.in > DISPLAY_EPS) push(demandBy, item, { nodeId, rate: f.in, ...at });
+          continue;
+        }
+        const net = f.out - f.in;
         if (net > DISPLAY_EPS) push(supplyBy, item, { nodeId, rate: net, ...at });
         else if (net < -DISPLAY_EPS) push(demandBy, item, { nodeId, rate: -net, ...at });
       }
-    }
-    for (const s of sinks) {
-      const at = sinkPos.get(s.key) ?? { x: 0, y: 0 };
-      push(demandBy, s.item, { nodeId: s.key, rate: s.perMinute, ...at });
-    }
-    for (const s of sources) {
-      const at = srcPos.get(s.key) ?? { x: 0, y: 0 };
-      push(supplyBy, s.item, { nodeId: s.key, rate: s.perMinute, ...at });
     }
 
     const edges: Edge[] = [];
     const hubs: Array<{
       id: string; item: string; x: number; y: number; supply: number; demand: number;
     }> = [];
-
-    const drawn = site.connections ?? [];
 
     for (const [item, allSupply] of supplyBy) {
       const supply = allSupply.filter((s) => s.rate > DISPLAY_EPS);
@@ -310,6 +314,10 @@ export function Canvas({
       const leftOut = demand.filter(
         (d) => !claimedIn.has(d.nodeId) && (wanted.get(d.nodeId) ?? 0) > DISPLAY_EPS,
       );
+      // A wired machine appears on both sides at gross rates; never belt it to itself.
+      const selfOnly =
+        leftIn.length === 1 && leftOut.length === 1 && leftIn[0].nodeId === leftOut[0].nodeId;
+      if (selfOnly) continue;
       if (!leftIn.length || !leftOut.length) continue;
 
       // One producer, one consumer: no ambiguity, so no manifold.

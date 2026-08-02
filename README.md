@@ -39,7 +39,9 @@ into what nothing covers, what could be routed, and what is simply spare.
 **Draws the belts, or lets you.** One machine feeding one other gets a plain arrow; where
 several make an item and several take it, they meet at a manifold. Drag between ports to
 wire something specific — that is how you say two water extractors are separate
-sub-factories rather than a shared pool.
+sub-factories rather than a shared pool. A machine that recycles its own input, like the
+Blender making Encased Uranium Cells, is shown as a net consumer until you wire one of
+those ports; then both run at gross rates so the returned fluid can go where you send it.
 
 ## Quick start
 
