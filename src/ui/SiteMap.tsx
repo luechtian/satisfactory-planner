@@ -12,6 +12,9 @@ import { usePlan } from "../store/planStore";
 const COL_W = 300;
 const ROW_H = 150;
 const NODE_H = 110;
+const NODE_W = 170;
+const BAND_GAP = 46;
+const BAND_PAD = 22;
 
 interface SiteNodeData extends Record<string, unknown> {
   name: string;
@@ -42,7 +45,16 @@ function SiteNodeView({ data, selected }: NodeProps & { data: SiteNodeData }) {
   );
 }
 
-const nodeTypes = { site: SiteNodeView };
+/** A labelled backdrop wrapping one group's sites. */
+function BandView({ data }: NodeProps & { data: { label: string } }) {
+  return (
+    <div className="band">
+      <span className="band__label">{data.label}</span>
+    </div>
+  );
+}
+
+const nodeTypes = { site: SiteNodeView, band: BandView };
 
 /**
  * The plan one level up: a site per node, links as edges.
@@ -87,16 +99,40 @@ export function SiteMap({
     };
     for (const s of summary.sites) depthOf(s.id);
 
+    // Lay out in horizontal bands, one per group: x still carries supply depth, y now
+    // carries membership. Ungrouped sites drop to the bottom band, matching the card
+    // list below.
+    const bandOrder: Array<string | undefined> = [];
+    const members = new Map<string | undefined, typeof summary.sites>();
+    for (const s of summary.sites) {
+      if (!members.has(s.group)) { members.set(s.group, []); bandOrder.push(s.group); }
+      members.get(s.group)!.push(s);
+    }
+    bandOrder.sort((a, b) => Number(a === undefined) - Number(b === undefined));
+
+    const at = new Map<string, { x: number; y: number }>();
     const rows = new Map<number, number>();
+    let bandTop = 40;
+    for (const group of bandOrder) {
+      const inBand = members.get(group)!;
+      const perDepth = new Map<number, number>();
+      for (const s of inBand) {
+        const d = depth.get(s.id) ?? 0;
+        const row = perDepth.get(d) ?? 0;
+        perDepth.set(d, row + 1);
+        at.set(s.id, { x: 40 + d * COL_W, y: bandTop + row * ROW_H });
+      }
+      const tall = Math.max(...perDepth.values(), 1);
+      rows.set(rows.size, tall);
+      bandTop += tall * ROW_H + BAND_GAP;
+    }
+
     const nodes: Node[] = summary.sites.map((s) => {
-      const d = depth.get(s.id) ?? 0;
-      const row = rows.get(d) ?? 0;
-      rows.set(d, row + 1);
       const stored = plan.sites.find((x) => x.id === s.id)?.mapPosition;
       return {
         id: s.id,
         type: "site",
-        position: stored ?? { x: 40 + d * COL_W, y: 40 + row * ROW_H },
+        position: stored ?? at.get(s.id) ?? { x: 40, y: 40 },
         data: {
           name: s.name, group: s.group, powerMW: s.powerMW,
           short: s.shortages, spare: s.surpluses,
@@ -107,6 +143,31 @@ export function SiteMap({
         } satisfies SiteNodeData,
       };
     });
+
+    // Bands are measured from where the sites actually are, so a dragged site drags
+    // its band with it rather than leaving the label stranded.
+    const byId = new Map(nodes.map((n) => [n.id, n.position]));
+    for (const group of bandOrder) {
+      if (!group) continue;
+      const pts = members.get(group)!.map((s) => byId.get(s.id)!).filter(Boolean);
+      if (!pts.length) continue;
+      const x = Math.min(...pts.map((p) => p.x)) - BAND_PAD;
+      const y = Math.min(...pts.map((p) => p.y)) - BAND_PAD - 14;
+      nodes.unshift({
+        id: `band:${group}`,
+        type: "band",
+        position: { x, y },
+        draggable: false,
+        selectable: false,
+        deletable: false,
+        zIndex: -1,
+        style: {
+          width: Math.max(...pts.map((p) => p.x)) + NODE_W + BAND_PAD - x,
+          height: Math.max(...pts.map((p) => p.y)) + NODE_H + BAND_PAD - y,
+        },
+        data: { label: group },
+      });
+    }
 
     // One arrow per pair of sites, not per item. Two links between the same two sites
     // produce two edges along an identical path, so they land exactly on top of each
@@ -137,15 +198,15 @@ export function SiteMap({
     // measured the nodes, so it lands off-centre and clips; the measured re-fit never
     // fired at all. Since this layout is ours, the extent is already known — size the
     // frame to it and leave the viewport alone. The fit button covers manual panning.
-    const rowCount = Math.max(...[...rows.values()], 1);
+    const rowCount = [...rows.values()].reduce((n, r) => n + r, 0) || 1;
     const height = Math.min(620, Math.max(240, rowCount * ROW_H + 70));
     // Past the height cap, zoom out rather than clip. Only the vertical extent is
     // worth scaling for: columns grow with chain depth, which stays small, whereas
     // unlinked sites all pile into one column.
-    const contentH = (rowCount - 1) * ROW_H + NODE_H;
+    const contentH = (rowCount - 1) * ROW_H + NODE_H + bandOrder.length * BAND_GAP;
     const zoom = Math.max(0.3, Math.min(1, (height - 40) / contentH));
 
-    return { nodes, edges, height, zoom, shape: `${rowCount}x${rows.size}` };
+    return { nodes, edges, height, zoom, shape: `${rowCount}x${rows.size}x${bandOrder.length}` };
   }, [db, plan.sites, summary]);
 
   if (!summary.sites.length) return null;
