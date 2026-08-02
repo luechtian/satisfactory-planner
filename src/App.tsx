@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadDb, type Db } from "./core/data";
+import { exportsOf } from "./core/overview";
 import { evaluateSite } from "./core/solver";
 import type { Plan } from "./core/types";
 import { usePlan } from "./store/planStore";
@@ -32,7 +33,9 @@ function Planner({ db }: { db: Db }) {
   const [overview, setOverview] = useState(false);
 
   const site = plan.sites.find((s) => s.id === activeSiteId) ?? plan.sites[0];
-  const result = useMemo(() => evaluateSite(db, site), [db, site]);
+  // What other sites draw from this one, so the balance reflects its commitments.
+  const owed = useMemo(() => exportsOf(plan, site.id), [plan, site.id]);
+  const result = useMemo(() => evaluateSite(db, site, owed), [db, site, owed]);
 
   // The palette hangs off a data-theme attribute on <html>, so native widgets and
   // scrollbars pick up color-scheme along with everything else.
@@ -116,7 +119,10 @@ function Planner({ db }: { db: Db }) {
         <Sidebar db={db} />
         <section className="canvas">
           {site.nodes.length ? (
-            <Canvas db={db} site={site} result={result} />
+            <Canvas
+              db={db} site={site} result={result} exports={owed}
+              onOpenSite={(id) => { setOverview(false); setActiveSite(id); }}
+            />
           ) : (
             <div className="empty">
               <h2>{site.name} is empty</h2>
@@ -126,7 +132,10 @@ function Planner({ db }: { db: Db }) {
             </div>
           )}
         </section>
-        <BalancePanel db={db} site={site} result={result} />
+        <BalancePanel
+          db={db} site={site} result={result} exports={owed}
+          otherSites={plan.sites.filter((s) => s.id !== site.id).map((s) => ({ id: s.id, name: s.name }))}
+        />
       </main>
       )}
     </div>

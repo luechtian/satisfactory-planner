@@ -1,10 +1,21 @@
 import { useMemo, useState } from "react";
 import type { Db } from "../core/data";
+import type { ExportClaim } from "../core/overview";
 import { DISPLAY_EPS, fmt } from "../core/solver";
 import type { Site, SiteResult } from "../core/types";
 import { usePlan } from "../store/planStore";
 
-export function BalancePanel({ db, site, result }: { db: Db; site: Site; result: SiteResult }) {
+export function BalancePanel({
+  db, site, result, exports, otherSites,
+}: {
+  db: Db;
+  site: Site;
+  result: SiteResult;
+  /** what other sites draw from this one */
+  exports: ExportClaim[];
+  /** every other site, offered as an import source */
+  otherSites: Array<{ id: string; name: string }>;
+}) {
   const { solve, tidy, addFlow, updateFlow, removeFlow, setSupply } = usePlan();
   const trimClocks = usePlan((s) => s.trimClocks);
   const setTrimClocks = usePlan((s) => s.setTrimClocks);
@@ -25,7 +36,9 @@ export function BalancePanel({ db, site, result }: { db: Db; site: Site; result:
 
       <button
         className="btn btn--primary"
-        disabled={!site.targets.length}
+        // An export is demand too — a site that exists only to supply another is
+        // still solvable.
+        disabled={!site.targets.length && !exports.length}
         onClick={() => {
           const r = solve(db);
           setStatus(
@@ -47,7 +60,9 @@ export function BalancePanel({ db, site, result }: { db: Db; site: Site; result:
       <button className="btn" disabled={!site.nodes.length} onClick={() => tidy(db)}>
         Tidy layout
       </button>
-      {!site.targets.length && <p className="hint">Add a target below to enable solving.</p>}
+      {!site.targets.length && !exports.length && (
+        <p className="hint">Add a target below to enable solving.</p>
+      )}
       {status && <p className="hint">{status}</p>}
 
       <FlowEditor
@@ -58,9 +73,29 @@ export function BalancePanel({ db, site, result }: { db: Db; site: Site; result:
       <FlowEditor
         db={db} title="Imports" kind="imports" flows={site.imports.filter((f) => !isRaw(f.item))}
         hint="Manufactured parts belted or trained in, so they aren't counted as short."
-        onlyItems={notRaw}
+        onlyItems={notRaw} sources={otherSites}
         onAdd={addFlow} onUpdate={updateFlow} onRemove={removeFlow}
       />
+
+      {!!exports.length && (
+        <section className="section">
+          <h3>Exports</h3>
+          <p className="hint">
+            Claimed by other sites, counted as a target here. Change the amount on the
+            site that draws it.
+          </p>
+          <ul className="feeds">
+            {exports.map((e, i) => (
+              <li key={`${e.toId}|${e.item}|${i}`}>
+                <span>
+                  {db.itemName(e.item)} <span className="muted">→ {e.toName}</span>
+                </span>
+                <strong>{fmt(e.perMinute)}/min</strong>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <RawSupply db={db} raws={result.raws} onSet={setSupply} />
 
@@ -137,7 +172,7 @@ const notRaw = (i: Db["items"][string]) => !i.isRawResource;
 type FlowKind = "targets" | "imports";
 
 function FlowEditor({
-  db, title, kind, flows, hint, onlyItems, onAdd, onUpdate, onRemove,
+  db, title, kind, flows, hint, onlyItems, sources, onAdd, onUpdate, onRemove,
 }: {
   db: Db;
   title: string;
@@ -146,8 +181,13 @@ function FlowEditor({
   hint: string;
   /** narrows the picker, e.g. imports offer manufactured parts but not ore */
   onlyItems?: (i: Db["items"][string]) => boolean;
+  /** when given, each row also picks which site it is belted from */
+  sources?: Array<{ id: string; name: string }>;
   onAdd: (k: FlowKind, item: string, perMinute: number) => void;
-  onUpdate: (k: FlowKind, id: string, patch: { item?: string; perMinute?: number }) => void;
+  onUpdate: (
+    k: FlowKind, id: string,
+    patch: { item?: string; perMinute?: number; from?: string | undefined },
+  ) => void;
   onRemove: (k: FlowKind, id: string) => void;
 }) {
   const [pick, setPick] = useState("");
@@ -166,15 +206,29 @@ function FlowEditor({
       <p className="hint">{hint}</p>
       <ul className="flows">
         {flows.map((f) => (
-          <li key={f.id}>
-            <select value={f.item} onChange={(e) => onUpdate(kind, f.id, { item: e.target.value })}>
-              {options.map((i) => <option key={i.class} value={i.class}>{i.name}</option>)}
-            </select>
-            <input
-              type="number" min={0} step={10} value={f.perMinute}
-              onChange={(e) => onUpdate(kind, f.id, { perMinute: Number(e.target.value) || 0 })}
-            />
-            <button className="btn btn--icon" onClick={() => onRemove(kind, f.id)}>×</button>
+          <li key={f.id} className={sources ? "flow flow--linked" : "flow"}>
+            <div className="flow__main">
+              <select value={f.item} onChange={(e) => onUpdate(kind, f.id, { item: e.target.value })}>
+                {options.map((i) => <option key={i.class} value={i.class}>{i.name}</option>)}
+              </select>
+              <input
+                type="number" min={0} step={10} value={f.perMinute}
+                onChange={(e) => onUpdate(kind, f.id, { perMinute: Number(e.target.value) || 0 })}
+              />
+              <button className="btn btn--icon" onClick={() => onRemove(kind, f.id)}>×</button>
+            </div>
+            {sources && (
+              <label className="flow__from">
+                from
+                <select
+                  value={f.from ?? ""}
+                  onChange={(e) => onUpdate(kind, f.id, { from: e.target.value || undefined })}
+                >
+                  <option value="">outside the plan</option>
+                  {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </label>
+            )}
           </li>
         ))}
       </ul>

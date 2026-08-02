@@ -2,7 +2,8 @@ import type { Db } from "./data";
 import { isExtractor } from "./types";
 import type { PlanNode, Site } from "./types";
 
-const COL_W = 340;
+// Wide enough that a manifold node fits in the gap between columns.
+const COL_W = 460;
 const ROW_H = 250;
 
 const label = (db: Db, n: PlanNode) =>

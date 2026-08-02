@@ -3,6 +3,7 @@ import type { Db } from "../core/data";
 import { rank, summarisePlan, type ItemRollup } from "../core/overview";
 import { DISPLAY_EPS, fmt } from "../core/solver";
 import type { Plan } from "../core/types";
+import { usePlan } from "../store/planStore";
 
 export function Overview({
   db, plan, onOpenSite,
@@ -12,6 +13,7 @@ export function Overview({
   onOpenSite: (id: string) => void;
 }) {
   const s = useMemo(() => summarisePlan(db, plan), [db, plan]);
+  const linkSites = usePlan((st) => st.linkSites);
 
   const gaps = s.items.filter((r) => rank(r) === 0);
   const routable = s.items.filter((r) => rank(r) === 1);
@@ -46,6 +48,13 @@ export function Overview({
             <RollupTable
               db={db} rows={routable} onOpenSite={onOpenSite}
               title="Could be routed" tone="warn"
+              onLink={(r) => {
+                // Wire the biggest shortfall to the biggest surplus and cover as much
+                // of it as that source actually has.
+                const need = [...r.shortAt].sort((a, b) => b.perMinute - a.perMinute)[0];
+                const src = [...r.spareAt].sort((a, b) => b.perMinute - a.perMinute)[0];
+                if (need && src) linkSites(need.id, src.id, r.item, Math.min(need.perMinute, src.perMinute));
+              }}
             />
             <RollupTable
               db={db} rows={spare} onOpenSite={onOpenSite}
@@ -54,6 +63,55 @@ export function Overview({
           </>
         ) : (
           <p className="muted pad">Every site balances on its own. Nothing crosses a boundary.</p>
+        )}
+      </section>
+
+      <section className="overview__block">
+        <h2>Links</h2>
+        <p className="hint">
+          Imports that name a source site. A link is a claim on that site's surplus, not a
+          re-plan — if the source stops covering it, both ends say so here.
+        </p>
+        {s.links.length ? (
+          <table className="rollup">
+            <thead>
+              <tr>
+                <th>Item</th><th>From</th><th>To</th>
+                <th className="num">Drawn</th><th className="num">Available at source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {s.links.map((l) => (
+                <tr key={`${l.sourceId}|${l.item}`}>
+                  <td>{db.itemName(l.item)}</td>
+                  <td>
+                    <button className="chip chip--pos" onClick={() => onOpenSite(l.sourceId)}>
+                      {l.sourceName}
+                    </button>
+                  </td>
+                  <td>
+                    <SiteChips refs={l.consumers} onOpenSite={onOpenSite} tone="neg" />
+                  </td>
+                  <td className="num">{fmt(l.drawn)}</td>
+                  <td className={`num ${l.over > DISPLAY_EPS ? "neg" : "pos"}`}>
+                    {fmt(l.available)}
+                    {l.over > DISPLAY_EPS && <span className="over"> short {fmt(l.over)}</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted pad">
+            No links yet. Use <b>Link</b> above, or set a source on an import.
+          </p>
+        )}
+        {!!s.brokenLinks.length && (
+          <p className="hint neg">
+            {s.brokenLinks.length} import{s.brokenLinks.length > 1 ? "s" : ""} point at a site
+            that no longer exists:{" "}
+            {s.brokenLinks.map((b) => `${b.siteName} → ${db.itemName(b.item)}`).join(", ")}
+          </p>
         )}
       </section>
 
@@ -121,13 +179,14 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 }
 
 function RollupTable({
-  db, rows, title, tone, onOpenSite,
+  db, rows, title, tone, onOpenSite, onLink,
 }: {
   db: Db;
   rows: ItemRollup[];
   title: string;
   tone: "good" | "bad" | "warn";
   onOpenSite: (id: string) => void;
+  onLink?: (r: ItemRollup) => void;
 }) {
   if (!rows.length) return null;
   return (
@@ -140,6 +199,7 @@ function RollupTable({
             <th>Short at</th>
             <th>Spare at</th>
             <th className="num">Balance</th>
+            {onLink && <th />}
           </tr>
         </thead>
         <tbody>
@@ -153,6 +213,11 @@ function RollupTable({
                 <SiteChips refs={r.spareAt} onOpenSite={onOpenSite} tone="pos" />
               </td>
               <td className={`num ${r.net < -DISPLAY_EPS ? "neg" : "pos"}`}>{fmt(r.net)}</td>
+              {onLink && (
+                <td className="num">
+                  <button className="btn btn--icon" onClick={() => onLink(r)}>Link</button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

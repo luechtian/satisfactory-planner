@@ -40,6 +40,15 @@ Re-run it after a game update to pick up new or changed recipes.
 - **Machines / Clock %** on each node work like the spreadsheet, and every rate updates
   live. Machines is always a whole number — you cannot build 1.5 Refineries. Type a
   fraction and it snaps.
+- **Belts** are drawn for you. Where one machine feeds one other, you get a plain arrow.
+  Where several make an item and several take it, they meet at a **manifold** showing
+  what goes in, what comes out and the difference — because rates alone cannot say which
+  machine feeds which, and pairing them off would invent a layout you never asked for.
+- **Draw a belt yourself** by dragging from an output port to an input port of the same
+  item. Hand-drawn belts are amber, take priority over anything generated, and survive
+  reloads; double-click one to remove it. This is how you say that two water extractors
+  are *not* a shared pool — wire each to its own chain and the manifold disappears.
+  Anything you leave unwired still pools, so a half-wired site keeps balancing.
 - **Underclock to avoid surplus** (right panel, off by default) picks how solving deals
   with the leftover. Off, you get whole machines at 100% and accept the overproduction —
   what most people actually build. On, each stage is underclocked onto its exact demand.
@@ -49,8 +58,14 @@ Re-run it after a game update to pick up new or changed recipes.
   backwards through the chain, sets every machine count, adds any missing production
   steps, and places extractors for raws nothing covers — one click takes an empty canvas
   to a complete factory. Solving again is idempotent; it re-sizes rather than stacking.
-- **Imports** are manufactured parts belted or trained in from another site, so they
-  aren't flagged as shortages.
+- **Imports** are manufactured parts belted or trained in, so they aren't flagged as
+  shortages. Each one can name a **source site**, which makes it a link.
+- **Links bind at both ends.** An import naming a source becomes an **export** on that
+  source: it shows in the source's Exports list, counts against its balance, and is
+  solved for. Starve the source and it reports the shortfall itself rather than the
+  consumer silently believing it is supplied. The import is the only stored record —
+  the export is derived from it, so the two ends cannot drift apart. Change the amount
+  at the consuming end.
 - **Raw supply** lists every ore, fluid and gas the site burns: what it **needs**, what
   the **site** already yields (extractor nodes plus byproducts), and a **belt** box for
   anything trained in from elsewhere. A row settles to 0 when it's covered, or shows the
@@ -154,12 +169,13 @@ Current dump: **291 recipes** (111 alternate), 168 items, 17 machines.
 - **Live watcher** — comparing plan against the running game needs the
   [FicsIt Remote Monitoring](https://docs.ficsit.app/ficsitremotemonitoring/latest/json/json.html)
   mod, which exposes `/getFactory` over HTTP. Vanilla installs expose nothing.
-- **Cross-site routing.** The **All sites** tab shows where one site's surplus lines up
-  with another's shortfall, but nothing is linked: an import is still a number you type,
-  so retuning the source site does not warn the consumer. Making an import point at a
-  source site is the next step, and the design fork is explicit links (a belt or train
-  really exists, and you care which) versus one global pool (less bookkeeping, but it
-  assumes everything can reach everything).
+- **Circular links.** Links are checked, not jointly solved. Each site is still
+  evaluated on its own with its obligations applied, so if A draws from B while B draws
+  from A, both numbers are individually sensible but the pair is never resolved
+  together. A real joint solve across sites is a much larger change and only worth it
+  if circular supply turns out to be something you actually build.
+- **Automatic routing.** Links are created by hand or by the overview's **Link** button;
+  nothing rebalances the plan for you.
 - **Multiple extractors on one resource.** The solver sizes an extractor only when a
   resource has exactly one; several means deliberate hand-placement across differing
   purities, and there's no non-arbitrary way to split a target between them. Those keep

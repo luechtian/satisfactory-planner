@@ -94,6 +94,11 @@ export interface PlanFlow {
   id: string;
   item: string;
   perMinute: number;
+  /**
+   * Imports only: the site this is belted or trained from. Absent means it comes from
+   * outside the plan entirely, which is what every import was before links existed.
+   */
+  from?: string;
 }
 
 export interface Site {
@@ -104,6 +109,28 @@ export interface Site {
   targets: PlanFlow[];
   /** what arrives by belt/train from elsewhere, so it isn't flagged as a deficit */
   imports: PlanFlow[];
+  /**
+   * Where the derived target/export nodes have been dragged to, keyed by their
+   * synthetic id. Purely presentation — the flow itself still lives in `targets` or in
+   * the consuming site's import, so this is not a second copy of anything.
+   */
+  sinkPositions?: Record<string, { x: number; y: number }>;
+  /**
+   * Belts drawn by hand.
+   *
+   * Rates alone cannot say whether two water extractors feed one shared manifold or two
+   * separate sub-factories, so anything drawn here is taken as fact and routed first.
+   * Whatever is left over still pools, which keeps a half-wired site balancing.
+   */
+  connections?: SiteConnection[];
+}
+
+export interface SiteConnection {
+  id: string;
+  /** node id, or a synthetic sink id for a target/export */
+  from: string;
+  to: string;
+  item: string;
 }
 
 export interface Plan {

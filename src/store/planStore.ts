@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Db } from "../core/data";
 import { layoutSite } from "../core/layout";
+import { exportsOf } from "../core/overview";
 import { solveSite } from "../core/solver";
 import type {
   ExtractorNode, MachineNode, Plan, PlanFlow, PlanNode, Purity, Site,
@@ -45,9 +46,16 @@ interface PlanState {
   removeNode: (id: string) => void;
 
   addFlow: (kind: "targets" | "imports", item: string, perMinute: number) => void;
+  /** create an import on `targetSiteId` drawing from `sourceSiteId` — used by the overview */
+  linkSites: (targetSiteId: string, sourceSiteId: string, item: string, perMinute: number) => void;
   updateFlow: (kind: "targets" | "imports", id: string, patch: Partial<PlanFlow>) => void;
   removeFlow: (kind: "targets" | "imports", id: string) => void;
   setSupply: (item: string, perMinute: number) => void;
+
+  /** remember where a derived target/export node was dragged */
+  setSinkPosition: (key: string, position: { x: number; y: number }) => void;
+  addConnection: (from: string, to: string, item: string) => void;
+  removeConnection: (id: string) => void;
 
   solve: (db: Db) => { added: number; diverged: boolean };
   tidy: (db: Db) => void;
@@ -59,14 +67,14 @@ const initial: Plan = { version: 1, sites: [emptySite("New site")] };
 export const usePlan = create<PlanState>()(
   persist(
     (set, get) => {
-      /** Apply `fn` to the active site and write it back. */
-      const mutate = (fn: (s: Site) => Site) =>
+      /** Apply `fn` to one site by id and write it back. */
+      const mutateSite = (id: string, fn: (s: Site) => Site) =>
         set((st) => ({
-          plan: {
-            ...st.plan,
-            sites: st.plan.sites.map((s) => (s.id === st.activeSiteId ? fn(s) : s)),
-          },
+          plan: { ...st.plan, sites: st.plan.sites.map((s) => (s.id === id ? fn(s) : s)) },
         }));
+
+      /** Apply `fn` to the active site and write it back. */
+      const mutate = (fn: (s: Site) => Site) => mutateSite(get().activeSiteId, fn);
 
       return {
         plan: initial,
@@ -135,10 +143,30 @@ export const usePlan = create<PlanState>()(
             nodes: s.nodes.map((n) => (n.id === id ? ({ ...n, ...patch } as PlanNode) : n)),
           })),
         removeNode: (id) =>
-          mutate((s) => ({ ...s, nodes: s.nodes.filter((n) => n.id !== id) })),
+          mutate((s) => ({
+            ...s,
+            nodes: s.nodes.filter((n) => n.id !== id),
+            // Otherwise a hand-drawn belt would dangle off a node that no longer exists.
+            connections: (s.connections ?? []).filter((c) => c.from !== id && c.to !== id),
+          })),
 
         addFlow: (kind, item, perMinute) =>
           mutate((s) => ({ ...s, [kind]: [...s[kind], { id: uid(), item, perMinute }] })),
+
+        // Folds into any existing import of the same item from the same source rather
+        // than stacking a second row, so clicking Link twice is harmless.
+        linkSites: (targetSiteId, sourceSiteId, item, perMinute) =>
+          mutateSite(targetSiteId, (s) => {
+            const existing = s.imports.find((f) => f.item === item && f.from === sourceSiteId);
+            return existing
+              ? {
+                  ...s,
+                  imports: s.imports.map((f) =>
+                    f.id === existing.id ? { ...f, perMinute } : f,
+                  ),
+                }
+              : { ...s, imports: [...s.imports, { id: uid(), item, perMinute, from: sourceSiteId }] };
+          }),
         updateFlow: (kind, id, patch) =>
           mutate((s) => ({
             ...s,
@@ -158,8 +186,28 @@ export const usePlan = create<PlanState>()(
               : { ...s, imports: rest };
           }),
 
+        setSinkPosition: (key, position) =>
+          mutate((s) => ({ ...s, sinkPositions: { ...s.sinkPositions, [key]: position } })),
+
+        addConnection: (from, to, item) =>
+          mutate((s) => {
+            const dupe = (s.connections ?? []).some(
+              (c) => c.from === from && c.to === to && c.item === item,
+            );
+            return dupe
+              ? s
+              : { ...s, connections: [...(s.connections ?? []), { id: uid(), from, to, item }] };
+          }),
+        removeConnection: (id) =>
+          mutate((s) => ({ ...s, connections: (s.connections ?? []).filter((c) => c.id !== id) })),
+
         solve: (db) => {
-          const result = solveSite(db, get().site(), { trimClocks: get().trimClocks });
+          const st = get();
+          const result = solveSite(db, st.site(), {
+            trimClocks: st.trimClocks,
+            // A link is an obligation: solving the source must cover what it owes.
+            exports: exportsOf(st.plan, st.activeSiteId),
+          });
           mutate((s) => {
             const nodes: PlanNode[] = [
               ...s.nodes.map((n) => ({
@@ -176,10 +224,17 @@ export const usePlan = create<PlanState>()(
           return { added: result.added.length, diverged: result.diverged };
         },
 
+        // Tidy also drops remembered sink positions, so they fall back to being placed
+        // beside whatever feeds them. That doubles as a cleanup for keys left behind by
+        // links that have since been deleted.
         tidy: (db) =>
           mutate((s) => {
             const pos = layoutSite(db, s);
-            return { ...s, nodes: s.nodes.map((n) => ({ ...n, position: pos[n.id] ?? n.position })) };
+            return {
+              ...s,
+              nodes: s.nodes.map((n) => ({ ...n, position: pos[n.id] ?? n.position })),
+              sinkPositions: {},
+            };
           }),
 
         replacePlan: (plan) =>

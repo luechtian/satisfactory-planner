@@ -271,7 +271,26 @@ button, input, select { font: inherit; color: inherit; }
 
 /* flows + balances */
 .flows { list-style: none; margin: 0 0 .4rem; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
-.flows li { display: grid; grid-template-columns: 1fr 72px auto; gap: .3rem; }
+.flows li { display: grid; gap: .3rem; }
+.flow__main { display: grid; grid-template-columns: 1fr 72px auto; gap: .3rem; }
+.flow--linked { padding-bottom: .3rem; border-bottom: 1px solid var(--bg-3); }
+.flow__from {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: .35rem;
+  color: var(--muted);
+  font-size: .72rem;
+  padding-left: .1rem;
+}
+.flow__from select {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: .15rem .3rem;
+  min-width: 0;
+}
+.over { color: var(--neg); font-weight: 600; font-size: .72rem; }
 .flows__add { display: grid; grid-template-columns: 1fr auto; gap: .3rem; }
 
 .bal { width: 100%; border-collapse: collapse; font-size: .8rem; }
@@ -384,6 +403,66 @@ button, input, select { font: inherit; color: inherit; }
 
 .node .react-flow__handle { width: 7px; height: 7px; background: var(--line); border: 1px solid var(--bg-2); }
 .node .react-flow__handle:hover { background: var(--accent); }
+
+/* A manifold: everything making an item pours in, everything taking it draws out. */
+.hub {
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: .3rem .7rem;
+  text-align: center;
+  font-size: .72rem;
+  min-width: 116px;
+  box-shadow: var(--node-shadow);
+}
+.hub--short { border-color: var(--neg); }
+.hub__name { font-weight: 600; white-space: nowrap; }
+.hub__flow {
+  display: flex;
+  justify-content: center;
+  gap: .3rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.hub__arrow { color: var(--accent); }
+.hub__net { font-size: .66rem; font-weight: 600; }
+.hub .react-flow__handle { width: 6px; height: 6px; background: var(--line); border: none; }
+
+/* Where material leaves the site: a target or another site's claim. */
+.node--output { width: 200px; border-style: dashed; }
+.node--output .node__head { background: transparent; padding-bottom: .2rem; }
+.node--output .node__title { color: var(--pos); }
+.node--output-short { border-color: var(--neg); }
+.node--output-short .node__title { color: var(--neg); }
+.node__link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: .7rem;
+}
+.node__link:hover { text-decoration: underline; }
+.node__out { display: flex; align-items: baseline; gap: .25rem; padding: 0 .55rem .3rem; }
+.node__outrate { font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.node__foot {
+  padding: .25rem .55rem;
+  border-top: 1px solid var(--bg-3);
+  color: var(--muted);
+  font-size: .7rem;
+  font-variant-numeric: tabular-nums;
+}
+.node__foot--ok { color: var(--pos); }
+.node__foot--bad { color: var(--neg); }
+.edge--sink .react-flow__edge-path { stroke-dasharray: 4 3; }
+/* Hand-drawn belts read as deliberate, and are the only ones you can delete. */
+.edge--manual .react-flow__edge-path { stroke: var(--accent); stroke-width: 2; }
+/* A belt you drew that cannot carry what the machine asks for. */
+.edge--manual.edge--under .react-flow__edge-path { stroke: var(--neg); }
+.edge--manual.edge--under .react-flow__edge-text { fill: var(--neg); font-weight: 600; }
+.edge--manual.selected .react-flow__edge-path { stroke-width: 3; }
+.node .react-flow__handle-connecting { background: var(--accent); }
+.node .react-flow__handle-valid { background: var(--pos); }
 
 /* ------------------------------------------------------------- react flow */
 

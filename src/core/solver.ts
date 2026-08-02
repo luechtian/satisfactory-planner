@@ -25,7 +25,12 @@ export const effectiveOf = (n: PlanNode) => n.count * (n.clock / 100);
  * Forward pass: given machine counts, work out every rate and the site balance.
  * This is the direct replacement for the hand-written `Bilanz` formulas.
  */
-export function evaluateSite(db: Db, site: Site): SiteResult {
+export function evaluateSite(
+  db: Db,
+  site: Site,
+  /** rates other sites draw from this one; obligations, so they count as targets */
+  exports: ReadonlyArray<{ item: string; perMinute: number }> = [],
+): SiteResult {
   const nodes: NodeResult[] = [];
   const produced: Record<string, number> = {};
   const consumed: Record<string, number> = {};
@@ -69,6 +74,7 @@ export function evaluateSite(db: Db, site: Site): SiteResult {
   for (const f of site.imports) imported[f.item] = (imported[f.item] ?? 0) + f.perMinute;
   const targeted: Record<string, number> = {};
   for (const f of site.targets) targeted[f.item] = (targeted[f.item] ?? 0) + f.perMinute;
+  for (const f of exports) targeted[f.item] = (targeted[f.item] ?? 0) + f.perMinute;
 
   const keys = new Set([
     ...Object.keys(produced), ...Object.keys(consumed),
@@ -123,6 +129,8 @@ export interface SolveOptions {
   treatAsRaw?: string[];
   /** place miners and pumps for uncovered raws; on by default */
   autoExtractors?: boolean;
+  /** rates other sites draw from this one — solved for exactly like a target */
+  exports?: ReadonlyArray<{ item: string; perMinute: number }>;
   /** underclock nodes so output lands exactly on demand instead of overshooting */
   trimClocks?: boolean;
 }
@@ -202,6 +210,7 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
 
   const demand: Record<string, number> = {};
   for (const f of site.targets) demand[f.item] = (demand[f.item] ?? 0) + f.perMinute;
+  for (const f of opts.exports ?? []) demand[f.item] = (demand[f.item] ?? 0) + f.perMinute;
 
   const rates: Record<string, number> = {};
   const rateOf = (rc: string) => rates[rc] ?? 0;
@@ -332,7 +341,7 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
     (n) => ({ ...n, count: counts[n.id] ?? n.count, clock: clocks[n.id] ?? n.clock }) as PlanNode,
   );
   let solved: Site = { ...site, nodes: [...scaled, ...added] };
-  let balances = evaluateSite(db, solved).balances;
+  let balances = evaluateSite(db, solved, opts.exports).balances;
 
   // Machine counts were fixed above treating uncovered raws as freely available, so an
   // extractor sized to the exact shortfall closes it without disturbing the chain.
@@ -363,7 +372,7 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
       lane++;
     }
     solved = { ...site, nodes: [...scaled, ...added] };
-    balances = evaluateSite(db, solved).balances;
+    balances = evaluateSite(db, solved, opts.exports).balances;
   }
 
   const feeds = balances
