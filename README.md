@@ -38,6 +38,21 @@ Re-run it after a game update to pick up new or changed recipes.
   to come out of the ground.
 - Plans live in `localStorage`; **Export**/**Import** writes a JSON file for backup.
 
+## Where your plans live
+
+Sites persist automatically — nodes, counts, clocks, positions, targets and imports all
+survive a reload and a browser restart. But `localStorage` is **scoped to the origin**,
+so `http://localhost:5199` is effectively the filing cabinet. Consequences worth knowing:
+
+- The dev port is pinned to **5199** with `strictPort`. Change it and your existing plans
+  stop appearing (they aren't deleted, just filed under a different origin).
+- Per browser **and** per profile. Nothing syncs between Chrome and Firefox, or machines.
+- "Clear browsing data" / "cookies and site data" wipes them. Private windows lose them
+  on close.
+- Last write wins, no history. Two tabs open on the same plan will clobber each other.
+
+**Export** anything you'd be annoyed to lose. That JSON file is the only durable copy.
+
 Italic port names on a node mean nothing on the canvas feeds or takes that item — it
 crosses the site boundary. A `by` tag marks a byproduct.
 
