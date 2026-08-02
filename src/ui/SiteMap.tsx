@@ -108,16 +108,30 @@ export function SiteMap({
       };
     });
 
-    const edges: Edge[] = summary.links.flatMap((l) =>
-      l.consumers.map((c) => ({
-        id: `${l.sourceId}->${c.id}:${l.item}`,
-        source: l.sourceId,
-        target: c.id,
-        label: `${db.itemName(l.item)} ${fmt(c.perMinute)}/min`,
-        className: l.over > DISPLAY_EPS ? "edge--short" : undefined,
-        animated: l.over > DISPLAY_EPS,
-      })),
-    );
+    // One arrow per pair of sites, not per item. Two links between the same two sites
+    // produce two edges along an identical path, so they land exactly on top of each
+    // other and read as one — the second is invisible and its label overlaps the first.
+    // Topology is the map's job; the Links table below carries the per-item detail.
+    const pairs = new Map<string, { from: string; to: string; parts: string[]; over: boolean }>();
+    for (const l of summary.links) {
+      for (const c of l.consumers) {
+        const key = `${l.sourceId}->${c.id}`;
+        const pair = pairs.get(key) ?? { from: l.sourceId, to: c.id, parts: [], over: false };
+        pair.parts.push(`${db.itemName(l.item)} ${fmt(c.perMinute)}/min`);
+        pair.over ||= l.over > DISPLAY_EPS;
+        pairs.set(key, pair);
+      }
+    }
+
+    const edges: Edge[] = [...pairs].map(([id, pair]) => ({
+      id,
+      source: pair.from,
+      target: pair.to,
+      // Naming three items is still readable; past that a count is more use than a wall.
+      label: pair.parts.length <= 3 ? pair.parts.join(" · ") : `${pair.parts.length} items`,
+      className: pair.over ? "edge--short" : undefined,
+      animated: pair.over,
+    }));
 
     // Height is derived rather than fitted. React Flow's fitView runs before it has
     // measured the nodes, so it lands off-centre and clips; the measured re-fit never
