@@ -52,6 +52,9 @@ Re-run it after a game update to pick up new or changed recipes.
 - **Shortages / Surplus** is your sheet's `Bilanz` column, for manufactured items only — raws are
   excluded so they don't sit in the shortage list permanently.
 - Plans live in `localStorage`; **Export**/**Import** writes a JSON file for backup.
+- The **☀/☾ button** switches light and dark. First visit follows your OS setting; after
+  that your choice is remembered per browser. The theme is stored alongside the plan but
+  outside it, so it never lands in an export.
 
 ## Where your plans live
 

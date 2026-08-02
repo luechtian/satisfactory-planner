@@ -13,10 +13,20 @@ export const emptySite = (name: string): Site => ({
   id: uid(), name, nodes: [], targets: [], imports: [],
 });
 
+export type Theme = "dark" | "light";
+
+/** First visit follows the OS; after that the toggle wins and is remembered. */
+const systemTheme = (): Theme =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark";
+
 interface PlanState {
   plan: Plan;
   activeSiteId: string;
   selectedNodeId: string | null;
+  theme: Theme;
+  toggleTheme: () => void;
 
   site: () => Site;
   setActiveSite: (id: string) => void;
@@ -59,6 +69,8 @@ export const usePlan = create<PlanState>()(
         plan: initial,
         activeSiteId: initial.sites[0].id,
         selectedNodeId: null,
+        theme: systemTheme(),
+        toggleTheme: () => set((st) => ({ theme: st.theme === "dark" ? "light" : "dark" })),
 
         site: () => {
           const st = get();
@@ -171,7 +183,8 @@ export const usePlan = create<PlanState>()(
     },
     {
       name: "satisfactory-planner",
-      partialize: (st) => ({ plan: st.plan, activeSiteId: st.activeSiteId }),
+      // theme rides along here rather than in the plan, so it never lands in an export.
+      partialize: (st) => ({ plan: st.plan, activeSiteId: st.activeSiteId, theme: st.theme }),
     },
   ),
 );

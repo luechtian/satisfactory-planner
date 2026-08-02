@@ -26,8 +26,17 @@ function Planner({ db }: { db: Db }) {
   const activeSiteId = usePlan((s) => s.activeSiteId);
   const { setActiveSite, addSite, renameSite, removeSite, replacePlan } = usePlan();
 
+  const theme = usePlan((s) => s.theme);
+  const toggleTheme = usePlan((s) => s.toggleTheme);
+
   const site = plan.sites.find((s) => s.id === activeSiteId) ?? plan.sites[0];
   const result = useMemo(() => evaluateSite(db, site), [db, site]);
+
+  // The palette hangs off a data-theme attribute on <html>, so native widgets and
+  // scrollbars pick up color-scheme along with everything else.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   return (
     <div className="app">
@@ -68,7 +77,17 @@ function Planner({ db }: { db: Db }) {
           </button>
         </nav>
 
-        <PlanIO plan={plan} onLoad={replacePlan} />
+        <div className="io">
+          <button
+            className="btn btn--icon"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            {theme === "dark" ? "☀" : "☾"}
+          </button>
+          <PlanIO plan={plan} onLoad={replacePlan} />
+        </div>
       </header>
 
       <main className="layout">

@@ -5,13 +5,47 @@
   --line: #333846;
   --fg: #e6e8ee;
   --muted: #8b93a5;
+  /* Text-safe accent. Split from --accent-solid because the vivid amber that works as
+     a button fill drops to ~2:1 contrast as text on white. */
   --accent: #f59f2b;
+  --accent-solid: #f59f2b;
+  --on-accent: #17181c;
   --pos: #4ec97f;
   --neg: #ef5f5f;
+  --edge: #4a5063;
+  --extractor-bg: #2b2418;
+  --extractor-line: #5a4a2e;
+  --minimap-node: #4a5063;
+  --minimap-mask: rgba(20, 22, 27, .82);
+  --node-shadow: 0 2px 6px rgba(0, 0, 0, .35);
   --radius: 7px;
   font-family: "Inter", "Segoe UI", system-ui, sans-serif;
   font-size: 14px;
   color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #f4f6f9;
+  --bg-2: #ffffff;
+  --bg-3: #eceef3;
+  --line: #d3d8e2;
+  --fg: #1a1d24;
+  --muted: #5e6779;
+  --accent: #a8640a;
+  --accent-solid: #f59f2b;
+  --on-accent: #17181c;
+  --pos: #17794a;
+  --neg: #c0342c;
+  --edge: #9aa3b5;
+  --extractor-bg: #fdf2dd;
+  --extractor-line: #e0bd7c;
+  --minimap-node: #b9c0cd;
+  --minimap-mask: rgba(244, 246, 249, .82);
+  --alt-bg: #ebe1fb;
+  --alt-fg: #5b3f94;
+  /* White cards on a near-white canvas need depth, not just a border. */
+  --node-shadow: 0 1px 2px rgba(23, 35, 66, .14), 0 5px 14px rgba(23, 35, 66, .07);
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -128,7 +162,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 .btn:hover:not(:disabled) { border-color: var(--accent); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
-.btn--primary { background: var(--accent); color: #17181c; border-color: var(--accent); font-weight: 600; padding: .5rem; }
+.btn--primary { background: var(--accent-solid); color: var(--on-accent); border-color: var(--accent-solid); font-weight: 600; padding: .5rem; }
 .btn--primary:hover:not(:disabled) { filter: brightness(1.1); }
 .btn--icon { padding: .35rem .5rem; line-height: 1; }
 
@@ -156,7 +190,7 @@ button, input, select { font: inherit; color: inherit; }
 .arrow { color: var(--accent); }
 
 .tag { font-size: .6rem; padding: .05rem .25rem; border-radius: 3px; letter-spacing: .04em; }
-.tag--alt { background: #4a3a66; color: #cbb2f0; }
+.tag--alt { background: var(--alt-bg, #4a3a66); color: var(--alt-fg, #cbb2f0); }
 .tag--by { background: var(--line); color: var(--muted); margin-left: .3rem; }
 
 /* flows + balances */
@@ -206,6 +240,7 @@ button, input, select { font: inherit; color: inherit; }
   border-radius: 9px;
   font-size: .78rem;
   overflow: hidden;
+  box-shadow: var(--node-shadow);
 }
 .node--selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .node--off { opacity: .5; }
@@ -230,8 +265,8 @@ button, input, select { font: inherit; color: inherit; }
 
 /* Extraction is where the chain starts — give it its own colour so the left edge of
    the graph reads at a glance. */
-.node--extractor { border-color: #5a4a2e; }
-.node--extractor .node__head { background: #2b2418; }
+.node--extractor { border-color: var(--extractor-line); }
+.node--extractor .node__head { background: var(--extractor-bg); }
 .node--extractor .node__title { color: var(--accent); }
 .node--extractor .node__ports { grid-template-columns: 1fr; }
 .node__rate { padding: .1rem .55rem; color: var(--muted); font-size: .7rem; }
@@ -276,7 +311,7 @@ button, input, select { font: inherit; color: inherit; }
 
 /* ------------------------------------------------------------- react flow */
 
-.react-flow__edge-path { stroke: #4a5063; stroke-width: 1.5; }
+.react-flow__edge-path { stroke: var(--edge); stroke-width: 1.5; }
 .edge--short .react-flow__edge-path { stroke: var(--neg); }
 .react-flow__edge-text { fill: var(--muted); font-size: 9px; }
 .react-flow__edge-textbg { fill: var(--bg); }
@@ -286,5 +321,6 @@ button, input, select { font: inherit; color: inherit; }
   fill: var(--fg);
 }
 .react-flow__controls-button:hover { background: var(--bg-3); }
+.react-flow__minimap { border: 1px solid var(--line); border-radius: 5px; }
 .react-flow__attribution { background: transparent; }
-.react-flow__attribution a { color: #4a5063; }
+.react-flow__attribution a { color: var(--edge); }

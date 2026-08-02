@@ -122,14 +122,16 @@ export function Canvas({ db, site, result }: { db: Db; site: Site; result: SiteR
       minZoom={0.15}
       proOptions={{ hideAttribution: false }}
     >
-      <Background gap={20} size={1} />
+      {/* React Flow takes these as props rather than CSS, so they are read back off
+          the theme variables instead of being hardcoded per palette. */}
+      <Background gap={20} size={1} color="var(--edge)" />
       <Controls />
       <MiniMap
         pannable zoomable
-        nodeColor="#4a5063"
+        nodeColor="var(--minimap-node)"
         nodeStrokeWidth={0}
-        maskColor="rgba(20,22,27,.82)"
-        bgColor="#1b1e25"
+        maskColor="var(--minimap-mask)"
+        bgColor="var(--bg-2)"
       />
     </ReactFlow>
   );
