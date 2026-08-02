@@ -79,19 +79,31 @@ function RawSupply({
   return (
     <section className="section">
       <h3>Raw supply</h3>
-      <p className="hint">Extraction available on site. Leave at 0 to see what's needed.</p>
+      <p className="hint">
+        <b>Site</b> is what extractor nodes and byproducts already yield. Use <b>Belt</b>{" "}
+        for anything arriving from outside.
+      </p>
       <table className="raw">
         <thead>
-          <tr><th>Resource</th><th className="num">Need</th><th className="num">Supply</th><th className="num">Net</th></tr>
+          <tr>
+            <th>Resource</th>
+            <th className="num">Need</th>
+            <th className="num">Site</th>
+            <th className="num">Belt</th>
+            <th className="num">Net</th>
+          </tr>
         </thead>
         <tbody>
           {raws.map((b) => {
-            const need = b.consumed + b.target - b.produced;
+            // Gross demand, not net — netting extraction out of it hid the fact that a
+            // miner was covering the resource at all.
+            const need = b.consumed + b.target;
             const short = b.net < -1e-6;
             return (
               <tr key={b.item}>
                 <td>{db.itemName(b.item)}</td>
                 <td className="num muted">{fmt(need)}</td>
+                <td className="num muted">{fmt(b.produced)}</td>
                 <td>
                   <input
                     className="raw__in" type="number" min={0} step={30} value={round(b.imported)}

@@ -1,4 +1,5 @@
-import type { Building, GameData, Item, Recipe } from "./types";
+import { PURITY_MULTIPLIER } from "./types";
+import type { Building, ExtractorNode, GameData, Item, Recipe } from "./types";
 
 /** Indexed view of data.json, built once at startup. */
 export interface Db {
@@ -66,6 +67,39 @@ export function powerFor(db: Db, recipe: Recipe, count: number, clock: number): 
     ? recipe.variablePowerConstant + recipe.variablePowerFactor / 2
     : b.powerMW;
   return base * count * Math.pow(clock / 100, b.powerExponent);
+}
+
+/**
+ * Water Extractors pull a flat 120/min wherever they sit — there is no node purity to
+ * pick, unlike miners, oil pumps and wells.
+ */
+export const hasPurity = (building: string) => building !== "Build_WaterPump_C";
+
+/** What one extractor yields at 100% clock on a node of the given purity. */
+export function extractorRate(db: Db, node: ExtractorNode): number {
+  const b = db.buildings[node.building];
+  if (!b?.baseRatePerMin) return 0;
+  const purity = hasPurity(node.building) ? PURITY_MULTIPLIER[node.purity] : 1;
+  return b.baseRatePerMin * purity;
+}
+
+/** Extractor power scales with clock just like a manufacturer. */
+export function extractorPower(db: Db, node: ExtractorNode): number {
+  const b = db.buildings[node.building];
+  if (!b) return 0;
+  return b.powerMW * node.count * Math.pow(node.clock / 100, b.powerExponent);
+}
+
+/** Resources a given extractor may be placed on. Miners list nothing and take any solid. */
+export function resourcesFor(db: Db, building: string): Item[] {
+  const b = db.buildings[building];
+  const raws = Object.values(db.items).filter((i) => i.isRawResource);
+  if (!b) return raws;
+  if (b.allowedResources?.length) {
+    return b.allowedResources.map((r) => db.items[r]).filter(Boolean);
+  }
+  const forms = new Set(b.allowedForms?.length ? b.allowedForms : ["solid"]);
+  return raws.filter((i) => forms.has(i.form));
 }
 
 export function searchRecipes(db: Db, query: string, limit = 60): Recipe[] {

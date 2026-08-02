@@ -51,10 +51,16 @@ export interface GameData {
 
 /* ------------------------------------------------------------------ plan */
 
-/** One row of the old spreadsheet: a recipe run on N machines at a given clock. */
-export interface PlanNode {
+export type Purity = "impure" | "normal" | "pure";
+
+export const PURITY_MULTIPLIER: Record<Purity, number> = {
+  impure: 0.5,
+  normal: 1,
+  pure: 2,
+};
+
+interface NodeBase {
   id: string;
-  recipe: string;
   /** "Anzahl" — machine count, fractional allowed */
   count: number;
   /** overclock percentage, 100 = default */
@@ -62,6 +68,26 @@ export interface PlanNode {
   position: { x: number; y: number };
   note?: string;
 }
+
+/** One row of the old spreadsheet: a recipe run on N machines at a given clock. */
+export interface MachineNode extends NodeBase {
+  /** absent on plans saved before extractors existed, so it defaults to a machine */
+  kind?: "machine";
+  recipe: string;
+}
+
+/** Miners, pumps and wells — where raw resources actually enter the factory. */
+export interface ExtractorNode extends NodeBase {
+  kind: "extractor";
+  /** building class, e.g. Build_MinerMk3_C */
+  building: string;
+  resource: string;
+  purity: Purity;
+}
+
+export type PlanNode = MachineNode | ExtractorNode;
+
+export const isExtractor = (n: PlanNode): n is ExtractorNode => n.kind === "extractor";
 
 /** A rate the site must deliver (target) or may draw on (import). */
 export interface PlanFlow {

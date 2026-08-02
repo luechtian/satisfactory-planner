@@ -6,11 +6,13 @@ import {
 import "@xyflow/react/dist/style.css";
 import type { Db } from "../core/data";
 import { fmt } from "../core/solver";
+import { isExtractor } from "../core/types";
 import type { Site, SiteResult } from "../core/types";
 import { usePlan } from "../store/planStore";
-import { RecipeNode, type RecipeNodeData } from "./RecipeNode";
+import { ExtractorNodeView } from "./ExtractorNode";
+import { RecipeNode } from "./RecipeNode";
 
-const nodeTypes = { recipe: RecipeNode };
+const nodeTypes = { recipe: RecipeNode, extractor: ExtractorNodeView };
 
 export function Canvas({ db, site, result }: { db: Db; site: Site; result: SiteResult }) {
   const { updateNode, removeNode, setSelectedNode } = usePlan();
@@ -24,6 +26,10 @@ export function Canvas({ db, site, result }: { db: Db; site: Site; result: SiteR
     const producers = new Map<string, string[]>();
     const consumers = new Map<string, string[]>();
     for (const n of site.nodes) {
+      if (isExtractor(n)) {
+        push(producers, n.resource, n.id);
+        continue;
+      }
       const r = db.recipeByClass[n.recipe];
       if (!r) continue;
       for (const p of r.products) push(producers, p.item, n.id);
@@ -51,12 +57,32 @@ export function Canvas({ db, site, result }: { db: Db; site: Site; result: SiteR
       }
     }
 
-    const nodes: Node<RecipeNodeData>[] = site.nodes.map((n) => {
+    const nodes: Node[] = site.nodes.map((n) => {
+      const common = {
+        id: n.id,
+        position: n.position,
+        onChange: (patch: object) => updateNode(n.id, patch),
+        onRemove: () => removeNode(n.id),
+      };
+
+      if (isExtractor(n)) {
+        return {
+          id: common.id,
+          type: "extractor",
+          position: common.position,
+          data: {
+            db, node: n, result: resultById.get(n.id),
+            loose: !(consumers.get(n.resource) ?? []).length,
+            onChange: common.onChange, onRemove: common.onRemove,
+          },
+        };
+      }
+
       const r = db.recipeByClass[n.recipe];
       return {
-        id: n.id,
+        id: common.id,
         type: "recipe",
-        position: n.position,
+        position: common.position,
         data: {
           db, node: n, result: resultById.get(n.id),
           loose: {
@@ -67,8 +93,7 @@ export function Canvas({ db, site, result }: { db: Db; site: Site; result: SiteR
               .filter((p) => !(consumers.get(p.item) ?? []).some((id) => id !== n.id))
               .map((p) => p.item)),
           },
-          onChange: (patch) => updateNode(n.id, patch),
-          onRemove: () => removeNode(n.id),
+          onChange: common.onChange, onRemove: common.onRemove,
         },
       };
     });

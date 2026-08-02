@@ -1,6 +1,7 @@
-import { powerFor, type Db } from "./data";
+import { extractorPower, extractorRate, powerFor, type Db } from "./data";
+import { isExtractor } from "./types";
 import type {
-  ItemBalance, NodeResult, PlanNode, Recipe, Site, SiteResult,
+  ExtractorNode, ItemBalance, NodeResult, PlanNode, Recipe, Site, SiteResult,
 } from "./types";
 
 const EPS = 1e-6;
@@ -20,9 +21,23 @@ export function evaluateSite(db: Db, site: Site): SiteResult {
   const consumed: Record<string, number> = {};
 
   for (const n of site.nodes) {
+    const eff = effectiveOf(n);
+
+    if (isExtractor(n)) {
+      const perMinute = extractorRate(db, n) * eff;
+      produced[n.resource] = (produced[n.resource] ?? 0) + perMinute;
+      nodes.push({
+        nodeId: n.id,
+        effective: eff,
+        inputs: [],
+        outputs: [{ item: n.resource, amount: perMinute, perMinute }],
+        powerMW: extractorPower(db, n),
+      });
+      continue;
+    }
+
     const recipe = db.recipeByClass[n.recipe];
     if (!recipe) continue;
-    const eff = effectiveOf(n);
 
     const scale = (ports: Recipe["ingredients"], sink: Record<string, number>) =>
       ports.map((p) => {
@@ -104,19 +119,63 @@ export interface SolveOptions {
  * back correctly reduces the Water Extractors needed by Alumina Solution.
  */
 export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveResult {
+  // Extractors become one-product, no-ingredient pseudo-recipes so the rest of the
+  // solver can size a miner exactly as it sizes a Constructor.
+  //
+  // Only when a resource has a single extractor node, though. Several nodes on one
+  // resource means deliberate hand-placement across differing purities, and there is no
+  // non-arbitrary way to split a target between them — so those are left alone and the
+  // resource stays externally available. Their output still counts in the balance.
+  const extractorsByResource = new Map<string, ExtractorNode[]>();
+  for (const n of site.nodes) {
+    if (!isExtractor(n)) continue;
+    const list = extractorsByResource.get(n.resource);
+    if (list) list.push(n);
+    else extractorsByResource.set(n.resource, [n]);
+  }
+
+  const synthetic: Record<string, Recipe> = {};
+  const solvedExtractors = new Map<string, ExtractorNode>(); // synthetic class -> node
+  for (const [resource, list] of extractorsByResource) {
+    if (list.length !== 1) continue;
+    const node = list[0];
+    const perMinute = extractorRate(db, node);
+    if (perMinute <= 0) continue;
+    const cls = `extract:${node.id}`;
+    synthetic[cls] = {
+      class: cls,
+      name: db.itemName(resource),
+      alternate: false,
+      durationSec: 60,
+      machine: node.building,
+      ingredients: [],
+      products: [{ item: resource, amount: perMinute, perMinute }],
+      variablePowerConstant: 0,
+      variablePowerFactor: 0,
+    };
+    solvedExtractors.set(cls, node);
+  }
+  // Shadow db so every lookup below resolves synthetics too.
+  const sdb: Db = { ...db, recipeByClass: { ...db.recipeByClass, ...synthetic } };
+
   // Only a recipe's primary product makes it "the way to get" that item. Byproducts
   // are credited in the balance but never justify scaling a machine up.
   const chosen: Record<string, string> = {};
   for (const n of site.nodes) {
+    if (isExtractor(n)) continue;
     const r = db.recipeByClass[n.recipe];
     const primary = r?.products[0]?.item;
     if (primary) chosen[primary] ??= r.class;
   }
+  for (const [cls, node] of solvedExtractors) chosen[node.resource] = cls;
   Object.assign(chosen, opts.recipeChoice ?? {});
 
   const available = new Set(opts.treatAsRaw ?? []);
   for (const f of site.imports) available.add(f.item);
-  for (const [cls, it] of Object.entries(db.items)) if (it.isRawResource) available.add(cls);
+  for (const [cls, it] of Object.entries(db.items)) {
+    // A resource with its own miner is produced on site, not handed to us for free.
+    if (it.isRawResource && !solvedExtractors.has(chosen[cls] ?? "")) available.add(cls);
+  }
 
   const demand: Record<string, number> = {};
   for (const f of site.targets) demand[f.item] = (demand[f.item] ?? 0) + f.perMinute;
@@ -124,14 +183,14 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
   const rates: Record<string, number> = {};
   const rateOf = (rc: string) => rates[rc] ?? 0;
   const outPerMin = (rc: string, item: string) =>
-    db.recipeByClass[rc]?.products.find((p) => p.item === item)?.perMinute ?? 0;
+    sdb.recipeByClass[rc]?.products.find((p) => p.item === item)?.perMinute ?? 0;
 
   let diverged = true;
   for (let iter = 0; iter < 300; iter++) {
     const produced: Record<string, number> = {};
     const consumed: Record<string, number> = {};
     for (const [rc, x] of Object.entries(rates)) {
-      const r = db.recipeByClass[rc];
+      const r = sdb.recipeByClass[rc];
       if (!r || x <= 0) continue;
       for (const p of r.products) produced[p.item] = (produced[p.item] ?? 0) + p.perMinute * x;
       for (const i of r.ingredients) consumed[i.item] = (consumed[i.item] ?? 0) + i.perMinute * x;
@@ -141,7 +200,7 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
     const wanted = new Set([...Object.keys(demand), ...Object.keys(consumed)]);
     for (const item of wanted) {
       if (available.has(item)) continue;
-      const rc = chosen[item] ?? db.producersOf[item]?.[0]?.class;
+      const rc = chosen[item] ?? sdb.producersOf[item]?.[0]?.class;
       if (!rc) continue; // nothing makes it; falls out as a required feed below
 
       const need = (demand[item] ?? 0) + (consumed[item] ?? 0);
@@ -169,12 +228,14 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
   // ever climb it overshoots: Silica gets locked in before Alumina Solution's byproduct
   // credit shows up. Now that the recipe set is known the system is square — one chosen
   // recipe per item — so solve it exactly and let byproducts and loops net out.
-  const exact = solveExact(db, rates, chosen, available, demand);
+  const exact = solveExact(sdb, rates, chosen, available, demand);
   if (exact) Object.assign(rates, exact);
 
   // Distribute solved rates back onto nodes, keeping each node's clock setting.
   const nodesByRecipe: Record<string, PlanNode[]> = {};
-  for (const n of site.nodes) (nodesByRecipe[n.recipe] ??= []).push(n);
+  for (const n of site.nodes) {
+    (nodesByRecipe[isExtractor(n) ? `extract:${n.id}` : n.recipe] ??= []).push(n);
+  }
 
   const counts: Record<string, number> = {};
   const added: PlanNode[] = [];
@@ -200,8 +261,11 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
       lane++;
     }
   }
-  // Recipes on the canvas the targets don't need at all go to zero.
-  for (const n of site.nodes) counts[n.id] ??= 0;
+  // Recipes on the canvas the targets don't need at all go to zero — but hand-placed
+  // extractors the solver deliberately left alone keep the count they were given.
+  for (const n of site.nodes) {
+    counts[n.id] ??= isExtractor(n) && !solvedExtractors.has(`extract:${n.id}`) ? n.count : 0;
+  }
 
   // Re-run the forward pass over the solved plan to report what must be fed in.
   const solved: Site = {

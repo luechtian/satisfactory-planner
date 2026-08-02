@@ -29,15 +29,19 @@ Re-run it after a game update to pick up new or changed recipes.
 
 - **Sites** are the tabs across the top — one per factory location. Double-click to rename.
 - **Add recipes** from the left panel; search matches recipe, product or machine name.
+- **Extractors** (miners, pumps, wells) sit above the recipe list. Place one, then pick
+  its resource and node purity on the node itself. Solving sizes an extractor just like
+  a Constructor, and its power counts toward the total.
 - **Anzahl / Clock %** on each node work like the spreadsheet, and every rate updates live.
 - **Targets** (right panel) say what the site must ship out. **Solve for targets** works
   backwards through the chain, sets every machine count, and adds any missing steps.
 - **Imports** are manufactured parts belted or trained in from another site, so they
   aren't flagged as shortages.
-- **Raw supply** lists every ore, fluid and gas the site burns, with what it needs and a
-  box for what extraction you actually have. Leave a row at 0 to read it as "this much
-  has to come out of the ground"; type a rate in and the row settles to 0, or shows the
-  shortfall in red.
+- **Raw supply** lists every ore, fluid and gas the site burns: what it **needs**, what
+  the **site** already yields (extractor nodes plus byproducts), and a **belt** box for
+  anything trained in from elsewhere. A row settles to 0 when it's covered, or shows the
+  shortfall in red. Place extractors for resources you mine here; use the belt column
+  for resources that arrive from another site.
 - **Shortages / Surplus** is the `Bilanz` column, for manufactured items only — raws are
   excluded so they don't sit in the shortage list permanently.
 - Plans live in `localStorage`; **Export**/**Import** writes a JSON file for backup.
@@ -125,7 +129,11 @@ Current dump: **291 recipes** (111 alternate), 168 items, 17 machines.
   [FicsIt Remote Monitoring](https://docs.ficsit.app/ficsitremotemonitoring/latest/json/json.html)
   mod, which exposes `/getFactory` over HTTP. Vanilla installs expose nothing.
 - Cross-site routing (one site's surplus auto-filling another's imports).
-- Miner/extractor nodes with node purity and clock.
+- **Multiple extractors on one resource.** The solver sizes an extractor only when a
+  resource has exactly one; several means deliberate hand-placement across differing
+  purities, and there's no non-arbitrary way to split a target between them. Those keep
+  their manual counts and still count toward the balance.
+- Belt and pipe throughput limits (a Mk5 belt caps at 780/min, pipes at 600 m³).
 
 ## Layout
 

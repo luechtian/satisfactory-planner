@@ -1,15 +1,15 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { Db } from "../core/data";
 import { fmt } from "../core/solver";
-import type { NodeResult, PlanNode } from "../core/types";
+import type { MachineNode, NodeResult } from "../core/types";
 
 export interface RecipeNodeData extends Record<string, unknown> {
   db: Db;
-  node: PlanNode;
+  node: MachineNode;
   result?: NodeResult;
   /** items this node emits that nothing downstream takes, and inputs nothing feeds */
   loose: { inputs: Set<string>; outputs: Set<string> };
-  onChange: (patch: Partial<PlanNode>) => void;
+  onChange: (patch: Partial<MachineNode>) => void;
   onRemove: () => void;
 }
 

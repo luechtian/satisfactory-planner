@@ -1,8 +1,12 @@
 import type { Db } from "./data";
+import { isExtractor } from "./types";
 import type { PlanNode, Site } from "./types";
 
 const COL_W = 340;
 const ROW_H = 250;
+
+const label = (db: Db, n: PlanNode) =>
+  isExtractor(n) ? db.itemName(n.resource) : (db.recipeByClass[n.recipe]?.name ?? "");
 
 /**
  * Layered left-to-right layout: raw-fed machines on the left, final product on the
@@ -14,19 +18,24 @@ const ROW_H = 250;
  */
 export function layoutSite(db: Db, site: Site): Record<string, { x: number; y: number }> {
   const producersOf = new Map<string, string[]>();
+  const add = (item: string, id: string) => {
+    const list = producersOf.get(item);
+    if (list) list.push(id);
+    else producersOf.set(item, [id]);
+  };
   for (const n of site.nodes) {
-    const r = db.recipeByClass[n.recipe];
-    if (!r) continue;
-    for (const p of r.products) {
-      const list = producersOf.get(p.item);
-      if (list) list.push(n.id);
-      else producersOf.set(p.item, [n.id]);
+    if (isExtractor(n)) {
+      add(n.resource, n.id);
+      continue;
     }
+    for (const p of db.recipeByClass[n.recipe]?.products ?? []) add(p.item, n.id);
   }
 
   const byId = new Map(site.nodes.map((n) => [n.id, n]));
   const feeders = (id: string): string[] => {
-    const r = db.recipeByClass[byId.get(id)!.recipe];
+    const n = byId.get(id)!;
+    if (isExtractor(n)) return []; // extraction is where the chain starts
+    const r = db.recipeByClass[n.recipe];
     if (!r) return [];
     const out = new Set<string>();
     for (const g of r.ingredients) {
@@ -62,7 +71,7 @@ export function layoutSite(db: Db, site: Site): Record<string, { x: number; y: n
   for (const [d, col] of columns) {
     // Centre short columns against the tallest one so the graph reads as a spine.
     const offset = ((tallest - col.length) * ROW_H) / 2;
-    col.sort((a, b) => db.recipeByClass[a.recipe]!.name.localeCompare(db.recipeByClass[b.recipe]!.name));
+    col.sort((a, b) => label(db, a).localeCompare(label(db, b)));
     col.forEach((n, i) => {
       positions[n.id] = { x: 60 + d * COL_W, y: 60 + offset + i * ROW_H };
     });
