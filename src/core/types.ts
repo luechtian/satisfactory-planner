@@ -61,7 +61,7 @@ export const PURITY_MULTIPLIER: Record<Purity, number> = {
 
 interface NodeBase {
   id: string;
-  /** "Anzahl" — machine count, fractional allowed */
+  /** how many buildings; always a whole number, part-loading is expressed as clock */
   count: number;
   /** overclock percentage, 100 = default */
   clock: number;

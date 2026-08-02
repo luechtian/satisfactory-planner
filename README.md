@@ -33,8 +33,8 @@ Re-run it after a game update to pick up new or changed recipes.
   resource and node purity on the node itself, or let **Solve** place them for you — it
   assumes a Miner Mk.3 on a normal-purity node, which you then adjust and re-solve.
   Extractor power counts toward the total.
-- **Anzahl / Clock %** on each node work like the spreadsheet, and every rate updates live.
-  Anzahl is always a whole number — you cannot build 1.5 Refineries. A fractional
+- **Machines / Clock %** on each node work like the spreadsheet, and every rate updates
+  live. Machines is always a whole number — you cannot build 1.5 Refineries. A fractional
   requirement becomes one more machine running slower, so 1.5 machines' worth is shown
   as 2 at 75%. Want the 2-at-100%-plus-1-at-50% arrangement instead? Add a second node
   for the same recipe and set its clock; the balance treats them as one pool.
@@ -49,7 +49,7 @@ Re-run it after a game update to pick up new or changed recipes.
   anything trained in from elsewhere. A row settles to 0 when it's covered, or shows the
   shortfall in red. Place extractors for resources you mine here; use the belt column
   for resources that arrive from another site.
-- **Shortages / Surplus** is the `Bilanz` column, for manufactured items only — raws are
+- **Shortages / Surplus** is your sheet's `Bilanz` column, for manufactured items only — raws are
   excluded so they don't sit in the shortage list permanently.
 - Plans live in `localStorage`; **Export**/**Import** writes a JSON file for backup.
 

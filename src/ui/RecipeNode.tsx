@@ -37,7 +37,7 @@ export function RecipeNode({ data, selected }: NodeProps & { data: RecipeNodeDat
 
       <div className="node__controls nodrag">
         <label>
-          Anzahl
+          Machines
           {/* Whole buildings only — a part-machine is expressed as a lower clock. */}
           <input
             type="number" min={0} step={1} value={node.count}
