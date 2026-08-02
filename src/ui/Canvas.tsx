@@ -12,6 +12,7 @@ import type { Site, SiteResult } from "../core/types";
 import { usePlan } from "../store/planStore";
 import { ExtractorNodeView } from "./ExtractorNode";
 import { HubNodeView } from "./HubNode";
+import { ImportNodeView } from "./ImportNode";
 import { OutputNodeView } from "./OutputNode";
 import { RecipeNode } from "./RecipeNode";
 
@@ -19,7 +20,7 @@ import { RecipeNode } from "./RecipeNode";
 // stylesheet then paints a white box behind ours.
 const nodeTypes = {
   recipe: RecipeNode, extractor: ExtractorNodeView,
-  sink: OutputNodeView, hub: HubNodeView,
+  sink: OutputNodeView, source: ImportNodeView, hub: HubNodeView,
 };
 
 const OUT_COL_GAP = 460;
@@ -48,12 +49,14 @@ interface Port {
 }
 
 export function Canvas({
-  db, site, result, exports, onOpenSite,
+  db, site, result, exports, otherSites, onOpenSite,
 }: {
   db: Db;
   site: Site;
   result: SiteResult;
   exports: ExportClaim[];
+  /** other sites, for naming where an import comes from */
+  otherSites: Array<{ id: string; name: string }>;
   onOpenSite: (id: string) => void;
 }) {
   const {
@@ -63,6 +66,7 @@ export function Canvas({
 
   const { nodes, edges } = useMemo(() => {
     const resultById = new Map(result.nodes.map((r) => [r.nodeId, r]));
+    const siteNames = new Map(otherSites.map((s) => [s.id, s.name]));
 
     // Who makes and who takes each item — used for the "nothing feeds this" port flag.
     const producers = new Map<string, string[]>();
@@ -77,6 +81,17 @@ export function Canvas({
       for (const p of r.products) push(producers, p.item, n.id);
       for (const g of r.ingredients) push(consumers, g.item, n.id);
     }
+
+    // Belted-in material needs a source on the canvas, or machines fed entirely by
+    // imports draw no edges and their ports read as unfed.
+    const sources = site.imports.map((f) => ({
+      key: `import:${f.id}`,
+      item: f.item,
+      perMinute: f.perMinute,
+      fromId: f.from,
+      fromName: f.from ? siteNames.get(f.from) : undefined,
+    }));
+    for (const s of sources) push(producers, s.item, s.key);
 
     const nodes: Node[] = site.nodes.map((n) => {
       const common = {
@@ -161,9 +176,39 @@ export function Canvas({
       });
     });
 
+    const leftEdge = site.nodes.length
+      ? Math.min(...site.nodes.map((n) => n.position.x))
+      : OUT_COL_GAP;
+    const takerY = (item: string) => {
+      const ys = (consumers.get(item) ?? [])
+        .map((id) => site.nodes.find((n) => n.id === id)?.position.y)
+        .filter((y): y is number => y !== undefined);
+      return ys.length ? ys.reduce((a, y) => a + y, 0) / ys.length : 0;
+    };
+    const srcPos = new Map<string, { x: number; y: number }>();
+    for (const s of spread(sources.map((s) => ({ ...s, y: takerY(s.item) || 60 })))) {
+      const at = site.sinkPositions?.[s.key] ?? { x: leftEdge - OUT_COL_GAP, y: s.y };
+      srcPos.set(s.key, at);
+      const taken = (consumers.get(s.item) ?? []).filter((id) => id !== s.key).length;
+      const bal = result.balances.find((b) => b.item === s.item);
+      nodes.push({
+        id: s.key,
+        type: "source",
+        position: at,
+        deletable: false,
+        data: {
+          db, item: s.item, perMinute: s.perMinute, fromName: s.fromName,
+          unused: !taken ? 0 : Math.max(0, Math.min(s.perMinute, bal ? bal.net : 0)),
+          orphan: !taken,
+          onOpen: s.fromId ? () => onOpenSite(s.fromId!) : undefined,
+        },
+      });
+    }
+
     // Wire each item up, treating sinks as just another consumer.
     const posOf = (id: string) =>
-      site.nodes.find((n) => n.id === id)?.position ?? sinkPos.get(id) ?? { x: 0, y: 0 };
+      site.nodes.find((n) => n.id === id)?.position ??
+      sinkPos.get(id) ?? srcPos.get(id) ?? { x: 0, y: 0 };
 
     const supplyBy = new Map<string, Port[]>();
     const demandBy = new Map<string, Port[]>();
@@ -175,6 +220,10 @@ export function Canvas({
     for (const s of sinks) {
       const at = sinkPos.get(s.key) ?? { x: 0, y: 0 };
       push(demandBy, s.item, { nodeId: s.key, rate: s.perMinute, ...at });
+    }
+    for (const s of sources) {
+      const at = srcPos.get(s.key) ?? { x: 0, y: 0 };
+      push(supplyBy, s.item, { nodeId: s.key, rate: s.perMinute, ...at });
     }
 
     const edges: Edge[] = [];
@@ -314,7 +363,7 @@ export function Canvas({
     }
 
     return { nodes, edges };
-  }, [db, site, result, exports, onOpenSite, updateNode, removeNode]);
+  }, [db, site, result, exports, otherSites, onOpenSite, updateNode, removeNode]);
 
   const onNodesChange = (changes: NodeChange[]) => {
     for (const c of changes) {
@@ -385,7 +434,8 @@ export function Canvas({
 }
 
 const isSynthetic = (id: string) =>
-  id.startsWith("target:") || id.startsWith("export:") || id.startsWith("hub:");
+  id.startsWith("target:") || id.startsWith("export:") ||
+  id.startsWith("import:") || id.startsWith("hub:");
 
 function push<K, V>(m: Map<K, V[]>, k: K, v: V) {
   const list = m.get(k);

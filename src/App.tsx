@@ -35,6 +35,10 @@ function Planner({ db }: { db: Db }) {
   const site = plan.sites.find((s) => s.id === activeSiteId) ?? plan.sites[0];
   // What other sites draw from this one, so the balance reflects its commitments.
   const owed = useMemo(() => exportsOf(plan, site.id), [plan, site.id]);
+  const otherSites = useMemo(
+    () => plan.sites.filter((s) => s.id !== site.id).map((s) => ({ id: s.id, name: s.name })),
+    [plan.sites, site.id],
+  );
   const result = useMemo(() => evaluateSite(db, site, owed), [db, site, owed]);
 
   // The palette hangs off a data-theme attribute on <html>, so native widgets and
@@ -120,7 +124,7 @@ function Planner({ db }: { db: Db }) {
         <section className="canvas">
           {site.nodes.length ? (
             <Canvas
-              db={db} site={site} result={result} exports={owed}
+              db={db} site={site} result={result} exports={owed} otherSites={otherSites}
               onOpenSite={(id) => { setOverview(false); setActiveSite(id); }}
             />
           ) : (
@@ -134,7 +138,7 @@ function Planner({ db }: { db: Db }) {
         </section>
         <BalancePanel
           db={db} site={site} result={result} exports={owed}
-          otherSites={plan.sites.filter((s) => s.id !== site.id).map((s) => ({ id: s.id, name: s.name }))}
+          otherSites={otherSites}
         />
       </main>
       )}

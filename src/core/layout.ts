@@ -67,6 +67,10 @@ export function layoutSite(db: Db, site: Site): Record<string, { x: number; y: n
     else columns.set(d, [n]);
   }
 
+  // Imported material is drawn in a column of its own to the left, so machines start
+  // one column in rather than at the origin where those nodes would end up off-view.
+  const originX = 60 + (site.imports.length ? COL_W : 0);
+
   const positions: Record<string, { x: number; y: number }> = {};
   const tallest = Math.max(...[...columns.values()].map((c) => c.length), 1);
   for (const [d, col] of columns) {
@@ -74,7 +78,7 @@ export function layoutSite(db: Db, site: Site): Record<string, { x: number; y: n
     const offset = ((tallest - col.length) * ROW_H) / 2;
     col.sort((a, b) => label(db, a).localeCompare(label(db, b)));
     col.forEach((n, i) => {
-      positions[n.id] = { x: 60 + d * COL_W, y: 60 + offset + i * ROW_H };
+      positions[n.id] = { x: originX + d * COL_W, y: 60 + offset + i * ROW_H };
     });
   }
   return positions;

@@ -428,6 +428,14 @@ button, input, select { font: inherit; color: inherit; }
 .hub__net { font-size: .66rem; font-weight: 600; }
 .hub .react-flow__handle { width: 6px; height: 6px; background: var(--line); border: none; }
 
+/* Where material enters by belt: the mirror of an output node. */
+.node--input { width: 200px; border-style: dashed; }
+.node--input .node__head { background: transparent; padding-bottom: .2rem; }
+.node--input .node__title { color: var(--accent); }
+.node--input .node__out { justify-content: flex-start; }
+.node--input-idle { border-color: var(--neg); }
+.node--input-idle .node__title { color: var(--neg); }
+
 /* Where material leaves the site: a target or another site's claim. */
 .node--output { width: 200px; border-style: dashed; }
 .node--output .node__head { background: transparent; padding-bottom: .2rem; }
