@@ -170,6 +170,29 @@ button, input, select { font: inherit; color: inherit; }
 .pos { color: var(--pos); font-weight: 600; }
 .neg { color: var(--neg); font-weight: 600; }
 
+.raw { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.raw th {
+  text-align: left;
+  font-weight: 500;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  padding: 0 .25rem .2rem;
+}
+.raw th.num { text-align: right; }
+.raw td { padding: .15rem .25rem; border-bottom: 1px solid var(--bg-3); }
+.raw__in {
+  width: 100%;
+  min-width: 58px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: .15rem .3rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .feeds { list-style: none; margin: 0; padding: 0; font-size: .82rem; }
 .feeds li { display: flex; justify-content: space-between; padding: .18rem 0; border-bottom: 1px solid var(--bg-3); }
 .feeds strong { color: var(--accent); font-variant-numeric: tabular-nums; }

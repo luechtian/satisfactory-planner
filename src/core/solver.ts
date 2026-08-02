@@ -61,10 +61,17 @@ export function evaluateSite(db: Db, site: Site): SiteResult {
   return {
     nodes,
     balances,
-    // Short raw resources are the ones that need miners, wells or a belt from outside;
-    // short intermediates just need more machines, and show up under shortages instead.
-    // Water counts here even though Aluminum Scrap hands some back.
-    rawInputs: balances.filter((b) => b.net < -EPS && db.items[b.item]?.isRawResource),
+    // Every raw the site touches, whether or not supply covers it — the panel needs the
+    // satisfied ones too so their declared rate stays visible and editable.
+    // Sorted by name, not by net: these rows carry text inputs, and net-ordering makes
+    // a row jump down the table the moment you finish typing a supply into it.
+    raws: balances
+      .filter(
+        (b) =>
+          db.items[b.item]?.isRawResource &&
+          (b.consumed > EPS || b.imported > EPS || b.target > EPS),
+      )
+      .sort((a, b) => db.itemName(a.item).localeCompare(db.itemName(b.item))),
     totalPowerMW: nodes.reduce((s, n) => s + n.powerMW, 0),
   };
 }

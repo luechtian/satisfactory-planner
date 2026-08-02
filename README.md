@@ -32,10 +32,14 @@ Re-run it after a game update to pick up new or changed recipes.
 - **Anzahl / Clock %** on each node work like the spreadsheet, and every rate updates live.
 - **Targets** (right panel) say what the site must ship out. **Solve for targets** works
   backwards through the chain, sets every machine count, and adds any missing steps.
-- **Imports** are items belted or trained in from another site, so they aren't flagged
-  as shortages.
-- **Shortages / Surplus** is the `Bilanz` column. **Raw extraction needed** is what has
-  to come out of the ground.
+- **Imports** are manufactured parts belted or trained in from another site, so they
+  aren't flagged as shortages.
+- **Raw supply** lists every ore, fluid and gas the site burns, with what it needs and a
+  box for what extraction you actually have. Leave a row at 0 to read it as "this much
+  has to come out of the ground"; type a rate in and the row settles to 0, or shows the
+  shortfall in red.
+- **Shortages / Surplus** is the `Bilanz` column, for manufactured items only — raws are
+  excluded so they don't sit in the shortage list permanently.
 - Plans live in `localStorage`; **Export**/**Import** writes a JSON file for backup.
 
 ## Where your plans live
@@ -115,6 +119,8 @@ Current dump: **291 recipes** (111 alternate), 168 items, 17 machines.
 
 - **LP optimizer** — "maximize X given these ore nodes", choosing among alternates.
   The data model is ready for it; drop in HiGHS-WASM over the same recipe matrix.
+  This is also what would make **Raw supply** a real constraint: today a supply rate
+  settles the balance but does not stop the solver asking for more than you have.
 - **Live watcher** — comparing plan against the running game needs the
   [FicsIt Remote Monitoring](https://docs.ficsit.app/ficsitremotemonitoring/latest/json/json.html)
   mod, which exposes `/getFactory` over HTTP. Vanilla installs expose nothing.

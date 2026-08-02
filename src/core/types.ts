@@ -109,7 +109,11 @@ export interface NodeResult {
 export interface SiteResult {
   nodes: NodeResult[];
   balances: ItemBalance[];
-  /** raw ores/fluids the site must be fed, keyed by item class */
-  rawInputs: ItemBalance[];
+  /**
+   * Every raw resource the site touches, covered or not, so supply can be typed in
+   * against the demand. Raws are excluded from the shortage list to avoid listing
+   * the same ore twice.
+   */
+  raws: ItemBalance[];
   totalPowerMW: number;
 }

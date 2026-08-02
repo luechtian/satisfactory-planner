@@ -5,11 +5,14 @@ import type { Site, SiteResult } from "../core/types";
 import { usePlan } from "../store/planStore";
 
 export function BalancePanel({ db, site, result }: { db: Db; site: Site; result: SiteResult }) {
-  const { solve, tidy, addFlow, updateFlow, removeFlow } = usePlan();
+  const { solve, tidy, addFlow, updateFlow, removeFlow, setSupply } = usePlan();
   const [status, setStatus] = useState<string | null>(null);
 
-  const shortages = result.balances.filter((b) => b.net < -1e-6);
-  const surpluses = result.balances.filter((b) => b.net > 1e-6);
+  // Raws have their own section with editable supply, so listing them here too would
+  // just be noise — every ore would sit in shortages permanently.
+  const isRaw = (item: string) => !!db.items[item]?.isRawResource;
+  const shortages = result.balances.filter((b) => b.net < -1e-6 && !isRaw(b.item));
+  const surpluses = result.balances.filter((b) => b.net > 1e-6 && !isRaw(b.item));
 
   return (
     <aside className="panel panel--right">
@@ -44,41 +47,84 @@ export function BalancePanel({ db, site, result }: { db: Db; site: Site; result:
         onAdd={addFlow} onUpdate={updateFlow} onRemove={removeFlow}
       />
       <FlowEditor
-        db={db} title="Imports" kind="imports" flows={site.imports}
-        hint="Belted or trained in from elsewhere, so it isn't counted as a shortage."
+        db={db} title="Imports" kind="imports" flows={site.imports.filter((f) => !isRaw(f.item))}
+        hint="Manufactured parts belted or trained in, so they aren't counted as short."
+        onlyItems={notRaw}
         onAdd={addFlow} onUpdate={updateFlow} onRemove={removeFlow}
       />
 
+      <RawSupply db={db} raws={result.raws} onSet={setSupply} />
+
       <BalanceTable db={db} title="Shortages" rows={shortages} tone="bad" empty="Nothing short." />
       <BalanceTable db={db} title="Surplus" rows={surpluses} tone="good" empty="Nothing spare." />
-
-      {!!result.rawInputs.length && (
-        <section className="section">
-          <h3>Raw extraction needed</h3>
-          <ul className="feeds">
-            {result.rawInputs.map((b) => (
-              <li key={b.item}>
-                <span>{db.itemName(b.item)}</span>
-                <strong>{fmt(-b.net)}/min</strong>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </aside>
   );
 }
 
+/**
+ * Ores, water and gas the site burns through. Rows appear on their own from what the
+ * machines consume; typing a supply rate says how much extraction is actually there.
+ *
+ * Supply is informational — it settles the balance but does not cap production. Making
+ * the solver respect a supply ceiling is the job of the LP phase.
+ */
+function RawSupply({
+  db, raws, onSet,
+}: {
+  db: Db;
+  raws: SiteResult["raws"];
+  onSet: (item: string, perMinute: number) => void;
+}) {
+  if (!raws.length) return null;
+  return (
+    <section className="section">
+      <h3>Raw supply</h3>
+      <p className="hint">Extraction available on site. Leave at 0 to see what's needed.</p>
+      <table className="raw">
+        <thead>
+          <tr><th>Resource</th><th className="num">Need</th><th className="num">Supply</th><th className="num">Net</th></tr>
+        </thead>
+        <tbody>
+          {raws.map((b) => {
+            const need = b.consumed + b.target - b.produced;
+            const short = b.net < -1e-6;
+            return (
+              <tr key={b.item}>
+                <td>{db.itemName(b.item)}</td>
+                <td className="num muted">{fmt(need)}</td>
+                <td>
+                  <input
+                    className="raw__in" type="number" min={0} step={30} value={round(b.imported)}
+                    onChange={(e) => onSet(b.item, Math.max(0, Number(e.target.value) || 0))}
+                  />
+                </td>
+                <td className={`num ${short ? "neg" : "pos"}`}>{fmt(b.net)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+const round = (v: number) => Math.round(v * 10000) / 10000;
+
+/** Module-level so the picker's useMemo isn't invalidated on every render. */
+const notRaw = (i: Db["items"][string]) => !i.isRawResource;
+
 type FlowKind = "targets" | "imports";
 
 function FlowEditor({
-  db, title, kind, flows, hint, onAdd, onUpdate, onRemove,
+  db, title, kind, flows, hint, onlyItems, onAdd, onUpdate, onRemove,
 }: {
   db: Db;
   title: string;
   kind: FlowKind;
   flows: Site["targets"];
   hint: string;
+  /** narrows the picker, e.g. imports offer manufactured parts but not ore */
+  onlyItems?: (i: Db["items"][string]) => boolean;
   onAdd: (k: FlowKind, item: string, perMinute: number) => void;
   onUpdate: (k: FlowKind, id: string, patch: { item?: string; perMinute?: number }) => void;
   onRemove: (k: FlowKind, id: string) => void;
@@ -88,9 +134,9 @@ function FlowEditor({
   const options = useMemo(
     () =>
       Object.values(db.items)
-        .filter((i) => db.producersOf[i.class]?.length || i.isRawResource)
+        .filter((i) => (db.producersOf[i.class]?.length || i.isRawResource) && (onlyItems?.(i) ?? true))
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [db],
+    [db, onlyItems],
   );
 
   return (

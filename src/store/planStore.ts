@@ -31,6 +31,7 @@ interface PlanState {
   addFlow: (kind: "targets" | "imports", item: string, perMinute: number) => void;
   updateFlow: (kind: "targets" | "imports", id: string, patch: Partial<PlanFlow>) => void;
   removeFlow: (kind: "targets" | "imports", id: string) => void;
+  setSupply: (item: string, perMinute: number) => void;
 
   solve: (db: Db) => { added: number; diverged: boolean };
   tidy: (db: Db) => void;
@@ -111,6 +112,17 @@ export const usePlan = create<PlanState>()(
           })),
         removeFlow: (kind, id) =>
           mutate((s) => ({ ...s, [kind]: s[kind].filter((f) => f.id !== id) })),
+
+        // Raw supply rows appear on their own from what the machines consume, so the
+        // input has to upsert: create the entry on first edit, drop it back to implicit
+        // when cleared. Stored in `imports` so availability stays one concept.
+        setSupply: (item, perMinute) =>
+          mutate((s) => {
+            const rest = s.imports.filter((f) => f.item !== item);
+            return perMinute > 0
+              ? { ...s, imports: [...rest, { id: uid(), item, perMinute }] }
+              : { ...s, imports: rest };
+          }),
 
         solve: (db) => {
           const result = solveSite(db, get().site());
