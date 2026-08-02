@@ -5,6 +5,7 @@ import type { Plan } from "./core/types";
 import { usePlan } from "./store/planStore";
 import { BalancePanel } from "./ui/BalancePanel";
 import { Canvas } from "./ui/Canvas";
+import { Overview } from "./ui/Overview";
 import { Sidebar } from "./ui/Sidebar";
 import "./styles.css";
 
@@ -28,6 +29,7 @@ function Planner({ db }: { db: Db }) {
 
   const theme = usePlan((s) => s.theme);
   const toggleTheme = usePlan((s) => s.toggleTheme);
+  const [overview, setOverview] = useState(false);
 
   const site = plan.sites.find((s) => s.id === activeSiteId) ?? plan.sites[0];
   const result = useMemo(() => evaluateSite(db, site), [db, site]);
@@ -47,11 +49,19 @@ function Planner({ db }: { db: Db }) {
         </div>
 
         <nav className="tabs">
+          <button
+            className={`tab tab--overview ${overview ? "tab--active" : ""}`}
+            onClick={() => setOverview(true)}
+            title="Everything across all sites"
+          >
+            ◱ All sites
+          </button>
+          <span className="tabs__sep" />
           {plan.sites.map((s) => (
             <button
               key={s.id}
-              className={`tab ${s.id === activeSiteId ? "tab--active" : ""}`}
-              onClick={() => setActiveSite(s.id)}
+              className={`tab ${s.id === activeSiteId && !overview ? "tab--active" : ""}`}
+              onClick={() => { setOverview(false); setActiveSite(s.id); }}
               onDoubleClick={() => {
                 const name = prompt("Site name", s.name);
                 if (name) renameSite(s.id, name);
@@ -59,7 +69,7 @@ function Planner({ db }: { db: Db }) {
               title="Double-click to rename"
             >
               {s.name}
-              {s.id === activeSiteId && plan.sites.length > 1 && (
+              {s.id === activeSiteId && !overview && plan.sites.length > 1 && (
                 <span
                   className="tab__x"
                   onClick={(e) => {
@@ -72,7 +82,10 @@ function Planner({ db }: { db: Db }) {
               )}
             </button>
           ))}
-          <button className="tab tab--add" onClick={() => addSite(`Site ${plan.sites.length + 1}`)}>
+          <button
+            className="tab tab--add"
+            onClick={() => { setOverview(false); addSite(`Site ${plan.sites.length + 1}`); }}
+          >
             +
           </button>
         </nav>
@@ -90,6 +103,15 @@ function Planner({ db }: { db: Db }) {
         </div>
       </header>
 
+      {overview ? (
+        <main className="layout layout--overview">
+          <Overview
+            db={db}
+            plan={plan}
+            onOpenSite={(id) => { setOverview(false); setActiveSite(id); }}
+          />
+        </main>
+      ) : (
       <main className="layout">
         <Sidebar db={db} />
         <section className="canvas">
@@ -106,6 +128,7 @@ function Planner({ db }: { db: Db }) {
         </section>
         <BalancePanel db={db} site={site} result={result} />
       </main>
+      )}
     </div>
   );
 }

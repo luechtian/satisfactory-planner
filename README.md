@@ -28,6 +28,10 @@ Re-run it after a game update to pick up new or changed recipes.
 ## Using it
 
 - **Sites** are the tabs across the top — one per factory location. Double-click to rename.
+- **All sites** is the overview tab: total power, raw extraction rolled up across every
+  site, and which items cross a boundary — split into what nothing covers, what one
+  site's surplus could supply to another, and what is simply spare. Site chips are
+  clickable and jump straight there.
 - **Add recipes** from the left panel; search matches recipe, product or machine name.
 - **Extractors** (miners, pumps, wells) sit above the recipe list. Place one and pick its
   resource and node purity on the node itself, or let **Solve** place them for you — it
@@ -144,7 +148,12 @@ Current dump: **291 recipes** (111 alternate), 168 items, 17 machines.
 - **Live watcher** — comparing plan against the running game needs the
   [FicsIt Remote Monitoring](https://docs.ficsit.app/ficsitremotemonitoring/latest/json/json.html)
   mod, which exposes `/getFactory` over HTTP. Vanilla installs expose nothing.
-- Cross-site routing (one site's surplus auto-filling another's imports).
+- **Cross-site routing.** The **All sites** tab shows where one site's surplus lines up
+  with another's shortfall, but nothing is linked: an import is still a number you type,
+  so retuning the source site does not warn the consumer. Making an import point at a
+  source site is the next step, and the design fork is explicit links (a belt or train
+  really exists, and you care which) versus one global pool (less bookkeeping, but it
+  assumes everything can reach everything).
 - **Multiple extractors on one resource.** The solver sizes an extractor only when a
   resource has exactly one; several means deliberate hand-placement across differing
   purities, and there's no non-arbitrary way to split a target between them. Those keep

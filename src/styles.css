@@ -100,6 +100,82 @@ button, input, select { font: inherit; color: inherit; }
 .tab__x:hover { opacity: 1; color: var(--neg); }
 
 .io { display: flex; gap: .4rem; }
+.tabs__sep { width: 1px; background: var(--line); align-self: stretch; margin: .4rem .3rem; flex: none; }
+.tab--overview { font-weight: 500; }
+
+/* ---------------------------------------------------------------- overview */
+
+/* Compound selector so this beats the .layout grid regardless of source order. */
+.layout.layout--overview { display: block; overflow-y: auto; background: var(--bg); }
+.overview { max-width: 1100px; margin: 0 auto; padding: 1.75rem 1.5rem 4rem; }
+.overview__head { border-bottom: 1px solid var(--line); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+.overview__head h1 { margin: 0 0 .9rem; font-size: 1.4rem; font-weight: 600; }
+.overview__stats { display: flex; gap: 2.5rem; flex-wrap: wrap; }
+.stat__label { color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; }
+.stat__value { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat__value--accent { color: var(--accent); }
+
+.overview__block { margin-bottom: 2.25rem; }
+.overview__block h2 { margin: 0 0 .3rem; font-size: 1rem; font-weight: 600; }
+.overview__block .hint { margin-bottom: .9rem; max-width: 62ch; }
+
+.rollup__title {
+  margin: 1.1rem 0 .4rem;
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-weight: 600;
+}
+.rollup__title--bad { color: var(--neg); }
+.rollup__title--warn { color: var(--accent); }
+.rollup__title--good { color: var(--pos); }
+
+.rollup { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.rollup th {
+  text-align: left;
+  font-weight: 500;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  padding: 0 .4rem .25rem;
+  border-bottom: 1px solid var(--line);
+}
+.rollup th.num { text-align: right; }
+.rollup td { padding: .35rem .4rem; border-bottom: 1px solid var(--bg-3); vertical-align: top; }
+
+.chips { display: flex; flex-wrap: wrap; gap: .25rem; }
+.chip {
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: .1rem .5rem;
+  font-size: .72rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip:hover { border-color: var(--accent); }
+.chip b { font-variant-numeric: tabular-nums; }
+.chip--pos b { color: var(--pos); }
+.chip--neg b { color: var(--neg); }
+
+.sitecards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .6rem; }
+.sitecard {
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: .7rem .8rem;
+  cursor: pointer;
+  display: grid;
+  gap: .15rem;
+  box-shadow: var(--node-shadow);
+}
+.sitecard:hover { border-color: var(--accent); }
+.sitecard__name { font-weight: 600; }
+.sitecard__power { color: var(--accent); font-variant-numeric: tabular-nums; font-size: 1.1rem; }
+.sitecard__meta { font-size: .72rem; }
+.sitecard__flags { display: flex; gap: .6rem; font-size: .72rem; margin-top: .2rem; }
 
 /* ------------------------------------------------------------------ layout */
 
