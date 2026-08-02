@@ -29,12 +29,15 @@ Re-run it after a game update to pick up new or changed recipes.
 
 - **Sites** are the tabs across the top — one per factory location. Double-click to rename.
 - **Add recipes** from the left panel; search matches recipe, product or machine name.
-- **Extractors** (miners, pumps, wells) sit above the recipe list. Place one, then pick
-  its resource and node purity on the node itself. Solving sizes an extractor just like
-  a Constructor, and its power counts toward the total.
+- **Extractors** (miners, pumps, wells) sit above the recipe list. Place one and pick its
+  resource and node purity on the node itself, or let **Solve** place them for you — it
+  assumes a Miner Mk.3 on a normal-purity node, which you then adjust and re-solve.
+  Extractor power counts toward the total.
 - **Anzahl / Clock %** on each node work like the spreadsheet, and every rate updates live.
 - **Targets** (right panel) say what the site must ship out. **Solve for targets** works
-  backwards through the chain, sets every machine count, and adds any missing steps.
+  backwards through the chain, sets every machine count, adds any missing production
+  steps, and places extractors for raws nothing covers — one click takes an empty canvas
+  to a complete factory. Solving again is idempotent; it re-sizes rather than stacking.
 - **Imports** are manufactured parts belted or trained in from another site, so they
   aren't flagged as shortages.
 - **Raw supply** lists every ore, fluid and gas the site burns: what it **needs**, what

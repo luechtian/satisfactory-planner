@@ -1,5 +1,5 @@
 import { PURITY_MULTIPLIER } from "./types";
-import type { Building, ExtractorNode, GameData, Item, Recipe } from "./types";
+import type { Building, ExtractorNode, GameData, Item, Purity, Recipe } from "./types";
 
 /** Indexed view of data.json, built once at startup. */
 export interface Db {
@@ -76,11 +76,31 @@ export function powerFor(db: Db, recipe: Recipe, count: number, clock: number): 
 export const hasPurity = (building: string) => building !== "Build_WaterPump_C";
 
 /** What one extractor yields at 100% clock on a node of the given purity. */
-export function extractorRate(db: Db, node: ExtractorNode): number {
-  const b = db.buildings[node.building];
+export function extractorRateFor(db: Db, building: string, purity: Purity): number {
+  const b = db.buildings[building];
   if (!b?.baseRatePerMin) return 0;
-  const purity = hasPurity(node.building) ? PURITY_MULTIPLIER[node.purity] : 1;
-  return b.baseRatePerMin * purity;
+  return b.baseRatePerMin * (hasPurity(building) ? PURITY_MULTIPLIER[purity] : 1);
+}
+
+export const extractorRate = (db: Db, node: ExtractorNode) =>
+  extractorRateFor(db, node.building, node.purity);
+
+/**
+ * Preference order when the planner has to pick an extractor itself. Miners declare no
+ * allowed resources and take any solid, so they are tried first; the dedicated pumps
+ * beat the Resource Well, which also accepts water and oil but needs a pressurizer.
+ */
+const EXTRACTOR_PREFERENCE = [
+  "Build_MinerMk3_C", "Build_WaterPump_C", "Build_OilPump_C", "Build_FrackingExtractor_C",
+];
+
+/** The extractor to place for a resource when none was chosen, or null if none fits. */
+export function defaultExtractorFor(db: Db, resource: string): string | null {
+  for (const building of EXTRACTOR_PREFERENCE) {
+    if (!db.buildings[building]) continue;
+    if (resourcesFor(db, building).some((i) => i.class === resource)) return building;
+  }
+  return null;
 }
 
 /** Extractor power scales with clock just like a manufacturer. */

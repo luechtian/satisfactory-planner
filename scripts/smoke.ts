@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { indexDb } from "../src/core/data";
 import { evaluateSite, solveSite, fmt } from "../src/core/solver";
+import { isExtractor } from "../src/core/types";
 import type { Site } from "../src/core/types";
 
 const db = indexDb(JSON.parse(readFileSync("public/data.json", "utf8")));
@@ -43,7 +44,10 @@ for (const n of target.nodes) {
   console.log(`  ${db.recipeByClass[n.recipe].name.padEnd(18)} ${fmt(sol.counts[n.id], 4)} machines`);
 }
 for (const n of sol.added) {
-  console.log(`  + ${db.recipeByClass[n.recipe].name.padEnd(16)} ${fmt(n.count, 4)} machines (added)`);
+  const [what, where] = isExtractor(n)
+    ? [db.itemName(n.resource), `${db.buildings[n.building]?.name}, ${n.purity}`]
+    : [db.recipeByClass[n.recipe].name, "added"];
+  console.log(`  + ${what.padEnd(16)} ${fmt(n.count, 4).padStart(7)}  (${where})`);
 }
 console.log("  feeds required:");
 for (const f of sol.feeds) console.log(`    ${db.itemName(f.item).padEnd(16)} ${fmt(f.perMinute)}/min`);

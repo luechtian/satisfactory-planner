@@ -1,7 +1,9 @@
-import { extractorPower, extractorRate, powerFor, type Db } from "./data";
+import {
+  defaultExtractorFor, extractorPower, extractorRate, extractorRateFor, powerFor, type Db,
+} from "./data";
 import { isExtractor } from "./types";
 import type {
-  ExtractorNode, ItemBalance, NodeResult, PlanNode, Recipe, Site, SiteResult,
+  ExtractorNode, ItemBalance, NodeResult, PlanNode, Purity, Recipe, Site, SiteResult,
 } from "./types";
 
 const EPS = 1e-6;
@@ -109,7 +111,16 @@ export interface SolveOptions {
   recipeChoice?: Record<string, string>;
   /** treat these as freely available even though a recipe exists (e.g. bussed in) */
   treatAsRaw?: string[];
+  /** place miners and pumps for uncovered raws; on by default */
+  autoExtractors?: boolean;
 }
+
+/**
+ * What an auto-placed extractor assumes. A normal-purity node is the honest middle
+ * guess, and Mk3 matches how new machine nodes default to clock 100 rather than to
+ * whatever is cheapest. Both are a dropdown away on the node itself.
+ */
+const DEFAULT_PURITY: Purity = "normal";
 
 /**
  * Backward pass: scale the chain until it meets `site.targets`.
@@ -267,13 +278,43 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
     counts[n.id] ??= isExtractor(n) && !solvedExtractors.has(`extract:${n.id}`) ? n.count : 0;
   }
 
-  // Re-run the forward pass over the solved plan to report what must be fed in.
-  const solved: Site = {
-    ...site,
-    nodes: [...site.nodes.map((n) => ({ ...n, count: counts[n.id] ?? n.count })), ...added],
-  };
-  const feeds = evaluateSite(db, solved)
-    .balances.filter((b) => b.net < -EPS)
+  // Re-run the forward pass over the solved plan to see what is still missing.
+  const scaled = site.nodes.map((n) => ({ ...n, count: counts[n.id] ?? n.count }) as PlanNode);
+  let solved: Site = { ...site, nodes: [...scaled, ...added] };
+  let balances = evaluateSite(db, solved).balances;
+
+  // Machine counts were fixed above treating uncovered raws as freely available, so an
+  // extractor sized to the exact shortfall closes it without disturbing the chain.
+  // Resources the user already put an extractor on are left alone — placing a second
+  // one behind their back would fight a deliberate choice.
+  if (opts.autoExtractors !== false) {
+    for (const b of balances) {
+      if (b.net >= -EPS || !db.items[b.item]?.isRawResource) continue;
+      if (extractorsByResource.has(b.item)) continue;
+
+      const building = defaultExtractorFor(db, b.item);
+      if (!building) continue;
+      const perMachine = extractorRateFor(db, building, DEFAULT_PURITY);
+      if (perMachine <= 0) continue;
+
+      added.push({
+        kind: "extractor",
+        id: `x${Date.now().toString(36)}${lane}`,
+        building,
+        resource: b.item,
+        purity: DEFAULT_PURITY,
+        count: round4(-b.net / perMachine),
+        clock: 100,
+        position: { x: 40 + (lane % 4) * 300, y: 40 + Math.floor(lane / 4) * 220 },
+      });
+      lane++;
+    }
+    solved = { ...site, nodes: [...scaled, ...added] };
+    balances = evaluateSite(db, solved).balances;
+  }
+
+  const feeds = balances
+    .filter((b) => b.net < -EPS)
     .map((b) => ({ item: b.item, perMinute: -b.net }));
 
   return { counts, added, feeds, diverged };
