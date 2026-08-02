@@ -6,6 +6,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import type { Db } from "../core/data";
 import type { ExportClaim } from "../core/overview";
+import { isHubId, routeGraph } from "../core/routing";
 import { DISPLAY_EPS, fmt } from "../core/solver";
 import { isExtractor } from "../core/types";
 import type { Site, SiteResult } from "../core/types";
@@ -38,14 +39,6 @@ function spread<T extends { y: number }>(items: T[]): T[] {
     if (gap < MIN_GAP) sorted[i] = { ...sorted[i], y: sorted[i - 1].y + MIN_GAP };
   }
   return sorted;
-}
-
-/** One end of a belt: who, and how much of the item they push or pull. */
-interface Port {
-  nodeId: string;
-  rate: number;
-  x: number;
-  y: number;
 }
 
 export function Canvas({
@@ -205,183 +198,71 @@ export function Canvas({
       });
     }
 
-    // Wire each item up, treating sinks as just another consumer.
-    const posOf = (id: string) =>
-      site.nodes.find((n) => n.id === id)?.position ??
-      sinkPos.get(id) ?? srcPos.get(id) ?? { x: 0, y: 0 };
-
-    // Net each machine per item before deciding which side it is on. A Blender making
-    // Encased Uranium Cells drinks 40 Sulfuric Acid and hands 10 back, so by default it
-    // is a net consumer of 30 and belongs solely on the demand side — listing it as both
-    // would invite an edge from itself to itself.
-    //
-    // Unless you have wired that port by hand. Drawing a belt off its acid output says
-    // the 10 goes somewhere specific, so the machine then appears on both sides at gross
-    // rates and the belt can carry what you asked it to.
-    const drawn = site.connections ?? [];
-    const flowBy = new Map<string, Map<string, { out: number; in: number }>>();
+    // All the routing decisions live in core/routing so they can be tested; this
+    // only turns them into React Flow's shapes.
+    const flows = new Map<string, { item: string; nodeId: string; out: number; in: number }>();
     const bump = (item: string, nodeId: string, side: "out" | "in", by: number) => {
-      const per = flowBy.get(item) ?? new Map<string, { out: number; in: number }>();
-      const rec = per.get(nodeId) ?? { out: 0, in: 0 };
+      const key = `${item}|${nodeId}`;
+      const rec = flows.get(key) ?? { item, nodeId, out: 0, in: 0 };
       rec[side] += by;
-      per.set(nodeId, rec);
-      flowBy.set(item, per);
+      flows.set(key, rec);
     };
     for (const r of result.nodes) {
       for (const p of r.outputs) bump(p.item, r.nodeId, "out", p.perMinute);
       for (const p of r.inputs) bump(p.item, r.nodeId, "in", p.perMinute);
     }
 
-    const supplyBy = new Map<string, Port[]>();
-    const demandBy = new Map<string, Port[]>();
-    for (const [item, perNode] of flowBy) {
-      for (const [nodeId, f] of perNode) {
-        const at = posOf(nodeId);
-        const wired = drawn.some(
-          (c) => c.item === item && (c.from === nodeId || c.to === nodeId),
-        );
-        if (wired) {
-          if (f.out > DISPLAY_EPS) push(supplyBy, item, { nodeId, rate: f.out, ...at });
-          if (f.in > DISPLAY_EPS) push(demandBy, item, { nodeId, rate: f.in, ...at });
-          continue;
-        }
-        const net = f.out - f.in;
-        if (net > DISPLAY_EPS) push(supplyBy, item, { nodeId, rate: net, ...at });
-        else if (net < -DISPLAY_EPS) push(demandBy, item, { nodeId, rate: -net, ...at });
-      }
-    }
+    const routed = routeGraph({
+      flows: [...flows.values()],
+      sinks: sinks.map((s) => ({ key: s.key, item: s.item, perMinute: s.perMinute })),
+      sources: sources.map((s) => ({ key: s.key, item: s.item, perMinute: s.perMinute })),
+      connections: site.connections ?? [],
+      positionOf: (id) =>
+        site.nodes.find((n) => n.id === id)?.position ??
+        sinkPos.get(id) ?? srcPos.get(id) ?? { x: 0, y: 0 },
+      isShort: (item) => {
+        const bal = result.balances.find((b) => b.item === item);
+        return !!bal && bal.net < -DISPLAY_EPS;
+      },
+    });
 
-    const edges: Edge[] = [];
-    const hubs: Array<{
-      id: string; item: string; x: number; y: number; supply: number; demand: number;
-    }> = [];
+    const edges: Edge[] = routed.edges.map((e) => {
+      const named = e.kind === "manual" || e.kind === "direct";
+      const label = e.under > DISPLAY_EPS
+        ? `${db.itemName(e.item)} ${fmt(e.rate)}/min · short ${fmt(e.under)}`
+        : named
+          ? `${db.itemName(e.item)} ${fmt(e.rate)}/min`
+          : `${fmt(e.rate)}/min`;
+      return {
+        id: e.id, source: e.from, target: e.to,
+        sourceHandle: `out-${e.item}`, targetHandle: `in-${e.item}`,
+        label,
+        className: [
+          e.short ? "edge--short" : "",
+          isSynthetic(e.to) && !isHubId(e.to) ? "edge--sink" : "",
+          e.manual ? "edge--manual" : "",
+          e.under > DISPLAY_EPS ? "edge--under" : "",
+        ].filter(Boolean).join(" ") || undefined,
+        deletable: e.kind === "manual",
+        animated: e.short || e.under > DISPLAY_EPS,
+      };
+    });
 
-    for (const [item, allSupply] of supplyBy) {
-      const supply = allSupply.filter((s) => s.rate > DISPLAY_EPS);
-      const demand = (demandBy.get(item) ?? []).filter((d) => d.rate > DISPLAY_EPS);
-      if (!supply.length || !demand.length) continue;
-
-      const bal = result.balances.find((b) => b.item === item);
-      const short = !!bal && bal.net < -DISPLAY_EPS;
-      const cls = (toSink: boolean, manual: boolean) =>
-        [short ? "edge--short" : "", toSink ? "edge--sink" : "", manual ? "edge--manual" : ""]
-          .filter(Boolean).join(" ") || undefined;
-
-      // Hand-drawn belts are taken as fact and served first.
-      const spare = new Map(supply.map((s) => [s.nodeId, s.rate]));
-      const wanted = new Map(demand.map((d) => [d.nodeId, d.rate]));
-
-      // Wiring a port to the manifold is not a belt between two machines — it says
-      // "this one is on the pool", at gross rates, and lets the pooling below place it
-      // as usual. Useful for a machine that recycles its own input, which is otherwise
-      // netted onto a single side and can never show both flows.
-      const pooled = new Set<string>();
-      for (const c of drawn) {
-        if (c.item !== item) continue;
-        if (isHub(c.from)) pooled.add(c.to);
-        else if (isHub(c.to)) pooled.add(c.from);
-      }
-
-      const mine = drawn.filter(
-        (c) =>
-          c.item === item && !isHub(c.from) && !isHub(c.to) &&
-          spare.has(c.from) && wanted.has(c.to),
-      );
-      const alloc = mine.map((c) => {
-        const flow = Math.min(spare.get(c.from)!, wanted.get(c.to)!);
-        spare.set(c.from, spare.get(c.from)! - flow);
-        wanted.set(c.to, wanted.get(c.to)! - flow);
-        return { c, flow };
-      });
-
-      // Wiring a port is a statement about where that item comes from or goes. So a
-      // machine you have wired is off limits to the pooling below: if the belt cannot
-      // keep up, it is drawn red and left short rather than quietly topped up from
-      // whatever else happens to make the same thing.
-      const claimedIn = new Set(mine.map((c) => c.to));
-      const claimedOut = new Set(mine.map((c) => c.from));
-
-      for (const { c, flow } of alloc) {
-        const missing = wanted.get(c.to) ?? 0;
-        const under = missing > DISPLAY_EPS;
-        edges.push({
-          id: c.id,
-          source: c.from, target: c.to,
-          sourceHandle: `out-${item}`, targetHandle: `in-${item}`,
-          label: under
-            ? `${db.itemName(item)} ${fmt(flow)}/min · short ${fmt(missing)}`
-            : `${db.itemName(item)} ${fmt(flow)}/min`,
-          className: [
-            "edge--manual",
-            under ? "edge--under" : "",
-            isSynthetic(c.to) ? "edge--sink" : "",
-          ].filter(Boolean).join(" "),
-          deletable: true,
-          animated: under,
-        });
-      }
-
-      const leftIn = supply.filter(
-        (s) => !claimedOut.has(s.nodeId) && (spare.get(s.nodeId) ?? 0) > DISPLAY_EPS,
-      );
-      const leftOut = demand.filter(
-        (d) => !claimedIn.has(d.nodeId) && (wanted.get(d.nodeId) ?? 0) > DISPLAY_EPS,
-      );
-      // A wired machine appears on both sides at gross rates; never belt it to itself.
-      const selfOnly =
-        leftIn.length === 1 && leftOut.length === 1 && leftIn[0].nodeId === leftOut[0].nodeId;
-      if (selfOnly) continue;
-      if (!leftIn.length || !leftOut.length) continue;
-
-      // One producer, one consumer: no ambiguity, so no manifold.
-      if (leftIn.length === 1 && leftOut.length === 1) {
-        const [s] = leftIn, [d] = leftOut;
-        edges.push({
-          id: `${s.nodeId}->${d.nodeId}:${item}`,
-          source: s.nodeId, target: d.nodeId,
-          sourceHandle: `out-${item}`, targetHandle: `in-${item}`,
-          label: `${db.itemName(item)} ${fmt(Math.min(spare.get(s.nodeId)!, wanted.get(d.nodeId)!))}/min`,
-          className: cls(isSynthetic(d.nodeId), false),
-          deletable: false,
-          animated: short,
-        });
-        continue;
-      }
-
-      // Otherwise the remainder meets in the middle, each arrow carrying its real rate.
-      const hubId = `hub:${item}`;
-      const both = [...leftIn, ...leftOut];
-      hubs.push({
-        id: hubId,
-        item,
-        x: Math.max(...leftIn.map((s) => s.x)) + NODE_W + 40,
-        y: both.reduce((n, m) => n + m.y, 0) / both.length + 30,
-        supply: leftIn.reduce((n, s) => n + spare.get(s.nodeId)!, 0),
-        demand: leftOut.reduce((n, d) => n + wanted.get(d.nodeId)!, 0),
-      });
-
-      for (const s of leftIn) {
-        edges.push({
-          id: `${s.nodeId}->${hubId}`,
-          source: s.nodeId, target: hubId,
-          sourceHandle: `out-${item}`, targetHandle: `in-${item}`,
-          label: `${fmt(spare.get(s.nodeId)!)}/min`,
-          className: cls(false, pooled.has(s.nodeId)),
-          deletable: false,
-        });
-      }
-      for (const d of leftOut) {
-        edges.push({
-          id: `${hubId}->${d.nodeId}`,
-          source: hubId, target: d.nodeId,
-          sourceHandle: `out-${item}`, targetHandle: `in-${item}`,
-          label: `${fmt(wanted.get(d.nodeId)!)}/min`,
-          className: cls(isSynthetic(d.nodeId), pooled.has(d.nodeId)),
-          deletable: false,
-          animated: short,
-        });
-      }
-    }
+    // Manifolds park in the gutter past whatever feeds them.
+    const hubs = routed.hubs.map((h) => {
+      const ends = routed.edges
+        .filter((e) => e.from === h.id || e.to === h.id)
+        .map((e) => (e.from === h.id ? e.to : e.from));
+      const feeders = routed.edges.filter((e) => e.to === h.id).map((e) => e.from);
+      const at = (id: string) =>
+        site.nodes.find((n) => n.id === id)?.position ??
+        sinkPos.get(id) ?? srcPos.get(id) ?? { x: 0, y: 0 };
+      return {
+        ...h,
+        x: Math.max(...feeders.map((id) => at(id).x), 0) + NODE_W + 40,
+        y: ends.reduce((n, id) => n + at(id).y, 0) / Math.max(ends.length, 1) + 30,
+      };
+    });
 
     // Several manifolds can land in the same gutter, so separate them by column first.
     const byColumn = new Map<number, typeof hubs>();
@@ -426,7 +307,7 @@ export function Canvas({
       !!item && item === itemOf(c.targetHandle) &&
       c.source !== c.target &&
       // Both ends being a manifold would say nothing.
-      !(isHub(c.source) && isHub(c.target))
+      !(isHubId(c.source) && isHubId(c.target))
     );
   };
 
@@ -470,8 +351,6 @@ export function Canvas({
     </ReactFlow>
   );
 }
-
-const isHub = (id: string | null | undefined) => !!id?.startsWith("hub:");
 
 const isSynthetic = (id: string) =>
   id.startsWith("target:") || id.startsWith("export:") ||

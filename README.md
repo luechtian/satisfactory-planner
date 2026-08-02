@@ -100,7 +100,23 @@ things a naive expansion gets wrong:
 - **Loops must close.** The iterative pass alone overshoots, because rates only climb and
   one gets locked in before the byproduct credit arrives.
 
-`scripts/smoke.ts` checks a known chain end to end: `npx tsx scripts/smoke.ts`.
+## Tests
+
+```bash
+npm test
+```
+
+Vitest, no browser, ~300ms. Two suites:
+
+- `tests/solver.test.ts` — balances, whole-machine derivation, byproduct credit, water
+  loops, idempotent solving, cross-site links and derived exports.
+- `tests/routing.test.ts` — what the canvas connects to what. Every case in it is a bug
+  that shipped: a machine recycling its own input becoming unreachable, hand-drawn belts
+  being silently topped up from elsewhere, import and export nodes losing their wires.
+
+That second file is why `src/core/routing.ts` exists as its own module. The logic used to
+live inside a `useMemo` in the canvas component, where none of it could be tested — and
+every routing bug so far has been pure logic rather than rendering.
 
 ## Recipe data
 
@@ -135,11 +151,11 @@ Current dump: **291 recipes** (111 alternate), 168 items, 17 machines.
 
 ```
 scripts/extract_docs.py   Docs.json -> public/data.json
-scripts/smoke.ts          solver sanity check
 src/core/types.ts         data + plan model
 src/core/data.ts          indexing, search, power
 src/core/solver.ts        forward + backward passes
 src/core/layout.ts        layered auto-layout
+src/core/routing.ts       what connects to what, and at what rate
 src/core/overview.ts      cross-site rollup and links
 src/store/planStore.ts    zustand state, localStorage
 src/ui/                   canvas, nodes, panels, tabs
