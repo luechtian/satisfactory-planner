@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import type { Plan } from "../core/types";
 import { usePlan } from "../store/planStore";
+import { SiteSearch } from "./SiteSearch";
 
 /** How far the pointer must travel before a click becomes a drag. */
 const DRAG_SLOP = 5;
@@ -25,7 +26,8 @@ export function SiteTabs({
   onOpenOverview: () => void;
   onOpenSite: (id: string) => void;
 }) {
-  const { addSite, renameSite, removeSite, moveSite } = usePlan();
+  const { addSite, renameSite, removeSite, moveSite, toggleGroup } = usePlan();
+  const collapsed = usePlan((s) => s.collapsedGroups);
   const nav = useRef<HTMLElement>(null);
   const start = useRef<{ id: string; x: number } | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -87,10 +89,28 @@ export function SiteTabs({
       </button>
       <span className="tabs__sep" />
 
-      {plan.sites.map((s, i) => (
-        <span className="tabs__slot" key={s.id}>
-          {s.group && s.group !== plan.sites[i - 1]?.group && (
-            <span className="tabs__group">{s.group}</span>
+      {plan.sites.map((s, i) => {
+        const startsRun = !!s.group && s.group !== plan.sites[i - 1]?.group;
+        const folded = !!s.group && collapsed.includes(s.group);
+        // The active tab stays put even inside a folded group, so folding never loses
+        // your place.
+        const hidden = folded && !(s.id === activeSiteId && !overview);
+        const runSize = s.group
+          ? plan.sites.filter((x, j) => x.group === s.group && j >= i && sameRun(plan, i, j)).length
+          : 0;
+
+        return (
+        <span className={`tabs__slot ${hidden ? "tabs__slot--folded" : ""}`} key={s.id}>
+          {startsRun && (
+            <button
+              className="tabs__group"
+              onClick={() => toggleGroup(s.group!)}
+              title={folded ? `Show ${s.group}` : `Hide ${s.group}`}
+            >
+              <span className="tabs__caret">{folded ? "▸" : "▾"}</span>
+              {s.group}
+              {folded && <span className="tabs__count">{runSize}</span>}
+            </button>
           )}
           {dropAt === i && <span className="tabs__marker" />}
           <button
@@ -121,12 +141,21 @@ export function SiteTabs({
             )}
           </button>
         </span>
-      ))}
+        );
+      })}
       {dropAt === plan.sites.length && <span className="tabs__marker" />}
 
       <button className="tab tab--add" onClick={() => addSite(`Site ${plan.sites.length + 1}`)}>
         +
       </button>
+      <SiteSearch plan={plan} onOpenSite={onOpenSite} />
     </nav>
   );
+}
+
+/** True while sites i..j form one unbroken run of the same group. */
+function sameRun(plan: Plan, i: number, j: number) {
+  const g = plan.sites[i].group;
+  for (let k = i; k <= j; k++) if (plan.sites[k].group !== g) return false;
+  return true;
 }

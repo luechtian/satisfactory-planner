@@ -31,7 +31,10 @@ Re-run it after a game update to pick up new or changed recipes.
   reorder. **Double-click** to rename, and prefix with a slash to head a group:
   `Nuclear / Uranium prep`. A group is only a heading over a run of adjacent tabs, so
   arranging sites and grouping them are the same act — split a group apart and you get
-  the heading twice, which is the point.
+  the heading twice, which is the point. **Click a group heading** to fold it; the tab
+  you are on stays visible so folding never loses your place. The **⌕ button** finds a
+  site by name or group — arrows to move, Enter to jump.
+
 - **All sites** is the overview tab: total power, raw extraction rolled up across every
   site, and which items cross a boundary — split into what nothing covers, what one
   site's surplus could supply to another, and what is simply spare. Site chips are

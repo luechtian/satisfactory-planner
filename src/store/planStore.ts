@@ -31,6 +31,9 @@ interface PlanState {
   /** underclock solved nodes to kill surplus; off by default */
   trimClocks: boolean;
   setTrimClocks: (v: boolean) => void;
+  /** group headings folded shut in the tab bar */
+  collapsedGroups: string[];
+  toggleGroup: (name: string) => void;
 
   site: () => Site;
   setActiveSite: (id: string) => void;
@@ -86,6 +89,13 @@ export const usePlan = create<PlanState>()(
         toggleTheme: () => set((st) => ({ theme: st.theme === "dark" ? "light" : "dark" })),
         trimClocks: false,
         setTrimClocks: (v) => set({ trimClocks: v }),
+        collapsedGroups: [],
+        toggleGroup: (name) =>
+          set((st) => ({
+            collapsedGroups: st.collapsedGroups.includes(name)
+              ? st.collapsedGroups.filter((g) => g !== name)
+              : [...st.collapsedGroups, name],
+          })),
 
         site: () => {
           const st = get();
@@ -263,6 +273,7 @@ export const usePlan = create<PlanState>()(
       partialize: (st) => ({
         plan: st.plan, activeSiteId: st.activeSiteId,
         theme: st.theme, trimClocks: st.trimClocks,
+        collapsedGroups: st.collapsedGroups,
       }),
     },
   ),
