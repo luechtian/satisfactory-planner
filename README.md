@@ -154,9 +154,9 @@ before the first run, or `configure-pages` fails with `Get Pages site failed …
 
 ## Licence and attribution
 
+
 Satisfactory is a game by [Coffee Stain Studios](https://www.coffeestainstudios.com/).
 This project is unofficial and unaffiliated. Item and recipe names come from the game's
 own `CommunityResources` data dump, which exists for community tools like this one.
 
-**There is no licence file yet**, which by default means all rights reserved. If you
-want to use, fork or contribute to this, open an issue and one will be added.
+The planner itself is [MIT licensed](LICENSE) — use it, fork it, ship it.

@@ -2,6 +2,12 @@
   "name": "satisfactory-planner",
   "private": true,
   "version": "0.0.0",
+  "license": "MIT",
+  "description": "Production planner for Satisfactory: plan factories as a node graph, solve backwards from a target.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/luechtian/satisfactory-planner.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
