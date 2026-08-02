@@ -123,6 +123,8 @@ export interface SolveOptions {
   treatAsRaw?: string[];
   /** place miners and pumps for uncovered raws; on by default */
   autoExtractors?: boolean;
+  /** underclock nodes so output lands exactly on demand instead of overshooting */
+  trimClocks?: boolean;
 }
 
 /**
@@ -257,33 +259,66 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
   for (const n of site.nodes) {
     (nodesByRecipe[isExtractor(n) ? `extract:${n.id}` : n.recipe] ??= []).push(n);
   }
+  // Two distinct strategies, never mixed — mixing exact rates with re-derived counts is
+  // what produced a 114% Silica clock.
+  //
+  //   default: whole machines at 100%, surplus accepted. Rounding one stage up raises
+  //            demand on the stage above, so counts are re-derived from each other.
+  //   trimmed: ceil each stage from the exact rate and underclock it onto the number.
+  //            No re-derivation needed, because nothing overshoots.
+  const trim = !!opts.trimClocks;
+  const machines = trim
+    ? Object.fromEntries(
+        Object.entries(rates).map(([rc, rate]) => [rc, machinesFor(rate, 100)]),
+      )
+    : integerise(sdb, rates, chosen, available, demand, () => 100);
 
   const counts: Record<string, number> = {};
-  const clocks: Record<string, number> = {};
   const added: PlanNode[] = [];
   let lane = 0;
 
-  for (const [rc, rate] of Object.entries(rates)) {
+  for (const [rc, count] of Object.entries(machines)) {
     const existing = nodesByRecipe[rc];
     if (existing?.length) {
       // Split across duplicates in their current proportion, evenly if all are zero.
       const total = existing.reduce((s, n) => s + n.count, 0);
-      for (const n of existing) {
+      let left = count;
+      existing.forEach((n, i) => {
         const share = total > EPS ? n.count / total : 1 / existing.length;
-        const fit = fitMachines(rate * share, n.clock);
-        counts[n.id] = fit.count;
-        clocks[n.id] = fit.clock;
-      }
+        // Whole machines cannot be split proportionally without drift, so round each
+        // and hand the remainder to the last node.
+        const give = i === existing.length - 1 ? left : Math.min(left, Math.round(count * share));
+        counts[n.id] = Math.max(0, give);
+        left -= counts[n.id];
+      });
     } else {
-      const fit = fitMachines(rate, 100);
       added.push({
         id: `n${Date.now().toString(36)}${lane}`,
         recipe: rc,
-        count: fit.count,
-        clock: fit.clock,
+        count,
+        clock: 100,
         position: { x: 40 + (lane % 4) * 300, y: 40 + Math.floor(lane / 4) * 220 },
       });
       lane++;
+    }
+  }
+
+  // Clock is written either way, so the option is reversible: unticking it and solving
+  // again puts everything back to 100% instead of stranding the trimmed values. The
+  // cost is that a deliberate overclock does not survive a solve.
+  const clocks: Record<string, number> = {};
+  for (const [rc, count] of Object.entries(machines)) {
+    const rate = rates[rc] ?? 0;
+    for (const n of nodesByRecipe[rc] ?? []) {
+      const mine = counts[n.id] ?? 0;
+      clocks[n.id] =
+        trim && mine > 0 ? clockToHit((rate * mine) / (count || 1), mine) : 100;
+    }
+  }
+  if (trim) {
+    for (const n of added) {
+      const rate = rates[isExtractor(n) ? `extract:${n.id}` : n.recipe];
+      if (rate && n.count > 0) n.clock = clockToHit(rate, n.count);
     }
   }
   // Recipes on the canvas the targets don't need at all go to zero — but hand-placed
@@ -313,15 +348,16 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
       const perMachine = extractorRateFor(db, building, DEFAULT_PURITY);
       if (perMachine <= 0) continue;
 
-      const fit = fitMachines(-b.net / perMachine, 100);
+      const wanted = -b.net / perMachine;
+      const count = machinesFor(wanted, 100);
       added.push({
         kind: "extractor",
         id: `x${Date.now().toString(36)}${lane}`,
         building,
         resource: b.item,
         purity: DEFAULT_PURITY,
-        count: fit.count,
-        clock: fit.clock,
+        count,
+        clock: opts.trimClocks ? clockToHit(wanted, count) : 100,
         position: { x: 40 + (lane % 4) * 300, y: 40 + Math.floor(lane / 4) * 220 },
       });
       lane++;
@@ -402,25 +438,82 @@ function solveExact(
   return out;
 }
 
-/**
- * Turn a fractional machine requirement into something you can actually build.
- *
- * You cannot place 1.5 Refineries. The fractional part becomes one more machine running
- * slower, so 1.5 becomes 2 at 75% — which hits the same throughput, and draws less power
- * than 1 at 100% plus 1 at 50% because power scales superlinearly with clock.
- *
- * `maxClock` is the node's existing clock, treated as intent rather than a fixed value:
- * left at the default 100 the result never overclocks, but a node deliberately set to
- * 250% keeps its shards and just needs fewer buildings.
- */
-export function fitMachines(rate: number, maxClock: number): { count: number; clock: number } {
-  if (rate <= EPS) return { count: 0, clock: maxClock };
+/** Whole machines needed to cover `rate` machine-equivalents, at a given clock. */
+export function machinesFor(rate: number, clock: number): number {
+  if (rate <= EPS) return 0;
   // Nudge by EPS so a clean 6.0000000001 does not demand a seventh machine.
-  const count = Math.max(1, Math.ceil(rate / (maxClock / 100) - EPS));
-  // The game only accepts 4 decimal places of clock, so 2.5 machines is 3 x 83.3333%,
-  // not exactly 2.5. Round that up rather than to nearest: a hair of overproduction is
-  // invisible, whereas under-delivering shows up as a phantom shortage in red.
-  return { count, clock: Math.ceil((rate / count) * 1e6) / 1e4 };
+  return Math.max(1, Math.ceil(rate / (clock / 100) - EPS));
+}
+
+/**
+ * Clock that makes `count` machines deliver exactly `rate`. Rounded up to the game's 4
+ * decimal places, because under-delivering by a rounding hair reads as a phantom
+ * shortage while a hair of overproduction is invisible.
+ */
+export function clockToHit(rate: number, count: number): number {
+  if (count <= 0) return 100;
+  return Math.ceil((rate / count) * 1e6) / 1e4;
+}
+
+/**
+ * Re-derive machine counts as whole numbers.
+ *
+ * Rounding up is not enough on its own, because a rounded stage consumes more than the
+ * fraction it replaced: 1.5 Aluminum Scrap refineries become 2, and 2 of them eat 480
+ * Alumina rather than 360 — which is 4 Alumina refineries, not 3. So the counts are
+ * recomputed from each other until they stop moving, exactly reproducing the numbers
+ * you would work out by hand.
+ *
+ * Counts may fall as well as rise, since a rounded-up byproduct source can make a
+ * downstream machine unnecessary. Cyclic chains could in principle oscillate by one, so
+ * the last stretch of iterations only ever increases, which always terminates.
+ */
+function integerise(
+  db: Db,
+  seed: Record<string, number>,
+  chosen: Record<string, string>,
+  available: Set<string>,
+  demand: Record<string, number>,
+  clockOf: (rc: string) => number,
+): Record<string, number> {
+  const machines: Record<string, number> = {};
+  for (const [rc, rate] of Object.entries(seed)) machines[rc] = machinesFor(rate, clockOf(rc));
+
+  const effective = (rc: string) => (machines[rc] ?? 0) * (clockOf(rc) / 100);
+  const outPerMin = (rc: string, item: string) =>
+    db.recipeByClass[rc]?.products.find((p) => p.item === item)?.perMinute ?? 0;
+
+  const MAX = 100;
+  for (let iter = 0; iter < MAX; iter++) {
+    const produced: Record<string, number> = {};
+    const consumed: Record<string, number> = {};
+    for (const rc of Object.keys(machines)) {
+      const r = db.recipeByClass[rc];
+      const x = effective(rc);
+      if (!r || x <= 0) continue;
+      for (const p of r.products) produced[p.item] = (produced[p.item] ?? 0) + p.perMinute * x;
+      for (const g of r.ingredients) consumed[g.item] = (consumed[g.item] ?? 0) + g.perMinute * x;
+    }
+
+    let changed = false;
+    for (const [item, rc] of Object.entries(chosen)) {
+      if (available.has(item) || machines[rc] === undefined) continue;
+      const per = outPerMin(rc, item);
+      if (per <= 0) continue;
+
+      const need = (demand[item] ?? 0) + (consumed[item] ?? 0);
+      const fromElsewhere = (produced[item] ?? 0) - effective(rc) * per;
+      const want = machinesFor(Math.max(0, need - fromElsewhere) / per, clockOf(rc));
+      // Past the halfway mark, refuse to shrink so a cycle cannot ping-pong forever.
+      const next = iter < MAX / 2 ? want : Math.max(want, machines[rc]);
+      if (next !== machines[rc]) {
+        machines[rc] = next;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  return machines;
 }
 
 /** Trailing zeros make a balance table much harder to scan. */

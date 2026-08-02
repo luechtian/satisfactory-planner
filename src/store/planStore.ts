@@ -27,6 +27,9 @@ interface PlanState {
   selectedNodeId: string | null;
   theme: Theme;
   toggleTheme: () => void;
+  /** underclock solved nodes to kill surplus; off by default */
+  trimClocks: boolean;
+  setTrimClocks: (v: boolean) => void;
 
   site: () => Site;
   setActiveSite: (id: string) => void;
@@ -71,6 +74,8 @@ export const usePlan = create<PlanState>()(
         selectedNodeId: null,
         theme: systemTheme(),
         toggleTheme: () => set((st) => ({ theme: st.theme === "dark" ? "light" : "dark" })),
+        trimClocks: false,
+        setTrimClocks: (v) => set({ trimClocks: v }),
 
         site: () => {
           const st = get();
@@ -154,7 +159,7 @@ export const usePlan = create<PlanState>()(
           }),
 
         solve: (db) => {
-          const result = solveSite(db, get().site());
+          const result = solveSite(db, get().site(), { trimClocks: get().trimClocks });
           mutate((s) => {
             const nodes: PlanNode[] = [
               ...s.nodes.map((n) => ({
@@ -184,7 +189,10 @@ export const usePlan = create<PlanState>()(
     {
       name: "satisfactory-planner",
       // theme rides along here rather than in the plan, so it never lands in an export.
-      partialize: (st) => ({ plan: st.plan, activeSiteId: st.activeSiteId, theme: st.theme }),
+      partialize: (st) => ({
+        plan: st.plan, activeSiteId: st.activeSiteId,
+        theme: st.theme, trimClocks: st.trimClocks,
+      }),
     },
   ),
 );

@@ -6,6 +6,8 @@ import { usePlan } from "../store/planStore";
 
 export function BalancePanel({ db, site, result }: { db: Db; site: Site; result: SiteResult }) {
   const { solve, tidy, addFlow, updateFlow, removeFlow, setSupply } = usePlan();
+  const trimClocks = usePlan((s) => s.trimClocks);
+  const setTrimClocks = usePlan((s) => s.setTrimClocks);
   const [status, setStatus] = useState<string | null>(null);
 
   // Raws have their own section with editable supply, so listing them here too would
@@ -35,6 +37,13 @@ export function BalancePanel({ db, site, result }: { db: Db; site: Site; result:
       >
         Solve for targets
       </button>
+      <label className="check" title="Off: whole machines at 100%, surplus accepted.">
+        <input
+          type="checkbox" checked={trimClocks}
+          onChange={(e) => setTrimClocks(e.target.checked)}
+        />
+        underclock to avoid surplus
+      </label>
       <button className="btn" disabled={!site.nodes.length} onClick={() => tidy(db)}>
         Tidy layout
       </button>
