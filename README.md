@@ -46,6 +46,13 @@ You can wire straight to a manifold too, which puts that machine on the pool and
 both its arms rather than one netted figure. Manifolds, imports, exports and targets can
 all be dragged where you want them; **Tidy layout** puts them back.
 
+**Takes it back.** Ctrl+Z steps through anything that changed the plan — a solve that
+rewrote a site, a deleted tab, an import that turned out to be the wrong file — and
+Ctrl+Shift+Z puts it back. A drag is one step rather than two hundred, and typing a rate
+is one step rather than one per digit. Switching tabs and folding a group are not edits
+and stay out of it; undoing a change made elsewhere takes you to the site it happened on,
+because otherwise you cannot see what moved.
+
 ## Quick start
 
 Requires Node 20.19+ (Vite 8) and, only for regenerating recipe data, Python 3.9+.
@@ -118,7 +125,7 @@ things a naive expansion gets wrong:
 npm test
 ```
 
-Vitest, no browser, under a second. Three suites:
+Vitest, no browser, under a second. Five suites:
 
 - `tests/solver.test.ts` — balances, whole-machine derivation, byproduct credit, water
   loops, idempotent solving, cross-site links and derived exports.
@@ -129,6 +136,12 @@ Vitest, no browser, under a second. Three suites:
   carries, what replaces what on the way back in, and the links that dangle until the
   site they name turns up. Mostly one question asked several ways — does taking someone
   else's file ever take your own work with it.
+- `tests/history.test.ts` — what counts as one undo step. A node drag fires an update per
+  pointer move, so the whole difference between a usable undo and an unusable one is in
+  the coalescing rules.
+- `tests/planStore.test.ts` — the wiring rather than the rules: that every action routes
+  through the single write path, that an action changing nothing spends no step, and that
+  stepping back leaves you on the site the change was made on.
 
 That second file is why `src/core/routing.ts` exists as its own module. The logic used to
 live inside a `useMemo` in the canvas component, where none of it could be tested — and
@@ -174,6 +187,7 @@ src/core/layout.ts        layered auto-layout
 src/core/routing.ts       what connects to what, and at what rate
 src/core/overview.ts      cross-site rollup and links
 src/core/transfer.ts      partial export, merging a file in
+src/core/history.ts       undo/redo snapshots and what counts as a step
 src/store/planStore.ts    zustand state, localStorage
 src/ui/                   canvas, nodes, panels, tabs
 ```

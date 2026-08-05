@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { loadDb, type Db } from "./core/data";
 import { exportsOf } from "./core/overview";
 import { evaluateSite } from "./core/solver";
-import { usePlan } from "./store/planStore";
+import { selectCanRedo, selectCanUndo, usePlan } from "./store/planStore";
 import { BalancePanel } from "./ui/BalancePanel";
 import { Canvas } from "./ui/Canvas";
 import { Overview } from "./ui/Overview";
@@ -65,6 +65,7 @@ function Planner({ db }: { db: Db }) {
         />
 
         <div className="io">
+          <UndoRedo />
           <button
             className="btn btn--icon"
             onClick={toggleTheme}
@@ -110,6 +111,59 @@ function Planner({ db }: { db: Db }) {
       </main>
       )}
     </div>
+  );
+}
+
+/**
+ * Step back and forward through plan edits.
+ *
+ * The shortcut is bound on the window rather than a focused element, since the thing
+ * you want to take back is usually a drag on the canvas, which leaves focus nowhere in
+ * particular.
+ */
+function UndoRedo() {
+  const undo = usePlan((s) => s.undo);
+  const redo = usePlan((s) => s.redo);
+  const canUndo = usePlan(selectCanUndo);
+  const canRedo = usePlan(selectCanRedo);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      // While typing, Ctrl+Z belongs to the field — taking it would undo a plan edit
+      // behind someone halfway through correcting a rate.
+      const el = e.target as HTMLElement | null;
+      if (el?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el?.tagName ?? "")) return;
+
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if (key === "y" || (key === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+
+  return (
+    <>
+      <button
+        className="btn btn--icon"
+        onClick={undo}
+        disabled={!canUndo}
+        title="Undo (Ctrl+Z)"
+        aria-label="Undo"
+      >
+        ↶
+      </button>
+      <button
+        className="btn btn--icon"
+        onClick={redo}
+        disabled={!canRedo}
+        title="Redo (Ctrl+Shift+Z)"
+        aria-label="Redo"
+      >
+        ↷
+      </button>
+    </>
   );
 }
 

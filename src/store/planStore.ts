@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Db } from "../core/data";
+import {
+  canRedo, canUndo, emptyHistory, record, redo, undo, type History,
+} from "../core/history";
 import { layoutSite } from "../core/layout";
 import { exportsOf } from "../core/overview";
 import { solveSite } from "../core/solver";
@@ -69,21 +72,89 @@ interface PlanState {
   replacePlan: (plan: Plan) => void;
   /** fold the accepted sites of an incoming file into this plan, keeping the rest */
   mergePlan: (incoming: Plan, accept: string[]) => void;
+
+  /**
+   * Plan edits only. Switching tabs, folding a group and flipping the theme are not
+   * changes to the plan, and having undo walk back through them would bury the edit you
+   * were actually trying to take back.
+   */
+  history: History;
+  undo: () => void;
+  redo: () => void;
 }
+
+/** Whether there is anything to step back to, for the toolbar buttons. */
+export const selectCanUndo = (st: PlanState) => canUndo(st.history);
+export const selectCanRedo = (st: PlanState) => canRedo(st.history);
 
 const initial: Plan = { version: 1, sites: [emptySite("New site")] };
 
 export const usePlan = create<PlanState>()(
   persist(
     (set, get) => {
+      /**
+       * The one way the plan is written. Everything that edits it goes through here, so
+       * there is a single place that knows about history and a single definition of
+       * "nothing actually changed".
+       *
+       * `tag` names the gesture: edits sharing one in quick succession collapse into a
+       * single undo step. Leave it off for anything discrete.
+       */
+      const write = (
+        next: (plan: Plan) => Plan,
+        tag?: string,
+        extra?: Partial<PlanState>,
+      ) =>
+        set((st) => {
+          const plan = next(st.plan);
+          // Returning the plan untouched is how an action says it did nothing —
+          // re-adding an existing belt, dragging a node one pixel and back. Recording it
+          // would spend an undo step on a no-op.
+          if (plan === st.plan) return {};
+          return {
+            plan,
+            history: record(
+              st.history,
+              { plan: st.plan, siteId: st.activeSiteId },
+              tag,
+              Date.now(),
+            ),
+            ...extra,
+          };
+        });
+
       /** Apply `fn` to one site by id and write it back. */
-      const mutateSite = (id: string, fn: (s: Site) => Site) =>
-        set((st) => ({
-          plan: { ...st.plan, sites: st.plan.sites.map((s) => (s.id === id ? fn(s) : s)) },
-        }));
+      const mutateSite = (id: string, fn: (s: Site) => Site, tag?: string) =>
+        write((plan) => {
+          const i = plan.sites.findIndex((s) => s.id === id);
+          if (i < 0) return plan;
+          const site = fn(plan.sites[i]);
+          if (site === plan.sites[i]) return plan;
+          const sites = [...plan.sites];
+          sites[i] = site;
+          return { ...plan, sites };
+        }, tag);
 
       /** Apply `fn` to the active site and write it back. */
-      const mutate = (fn: (s: Site) => Site) => mutateSite(get().activeSiteId, fn);
+      const mutate = (fn: (s: Site) => Site, tag?: string) =>
+        mutateSite(get().activeSiteId, fn, tag);
+
+      /** Move to a step from the history, landing on the site the change was made on. */
+      const travel = (to: ReturnType<typeof undo>) => {
+        if (!to) return;
+        const { plan, siteId } = to.step;
+        const here = get().activeSiteId;
+        set({
+          plan,
+          history: to.history,
+          // Undoing a change made on another site is only legible if you are looking at
+          // it. Falls back to where you are when that site is not in this plan — undoing
+          // an add, say — and to the first site if that has gone too.
+          activeSiteId: [siteId, here].find((id) => plan.sites.some((s) => s.id === id))
+            ?? plan.sites[0]?.id ?? "",
+          selectedNodeId: null,
+        });
+      };
 
       return {
         plan: initial,
@@ -108,39 +179,37 @@ export const usePlan = create<PlanState>()(
         setActiveSite: (id) => set({ activeSiteId: id, selectedNodeId: null }),
         setSelectedNode: (id) => set({ selectedNodeId: id }),
 
-        addSite: (name) =>
-          set((st) => {
-            const s = emptySite(name);
-            return { plan: { ...st.plan, sites: [...st.plan.sites, s] }, activeSiteId: s.id };
-          }),
+        addSite: (name) => {
+          const fresh = emptySite(name);
+          write((plan) => ({ ...plan, sites: [...plan.sites, fresh] }), undefined, {
+            activeSiteId: fresh.id,
+          });
+        },
         renameSite: (id, name, group) =>
-          set((st) => ({
-            plan: {
-              ...st.plan,
-              sites: st.plan.sites.map((s) =>
-                s.id === id ? { ...s, name, group: group || undefined } : s,
-              ),
-            },
-          })),
-        setMapPosition: (id, position) => mutateSite(id, (s) => ({ ...s, mapPosition: position })),
+          mutateSite(id, (s) => ({ ...s, name, group: group || undefined })),
+        setMapPosition: (id, position) =>
+          mutateSite(id, (s) => ({ ...s, mapPosition: position }), `map:${id}`),
         moveSite: (id, toIndex) =>
-          set((st) => {
-            const sites = [...st.plan.sites];
-            const from = sites.findIndex((s) => s.id === id);
-            if (from < 0) return st;
+          write((plan) => {
+            const from = plan.sites.findIndex((s) => s.id === id);
+            const to = Math.max(0, Math.min(plan.sites.length - 1, toIndex));
+            // Dropping a tab back where it started is not an edit to undo.
+            if (from < 0 || to === from) return plan;
+            const sites = [...plan.sites];
             const [moved] = sites.splice(from, 1);
-            sites.splice(Math.max(0, Math.min(sites.length, toIndex)), 0, moved);
-            return { plan: { ...st.plan, sites } };
+            sites.splice(to, 0, moved);
+            return { ...plan, sites };
           }),
-        removeSite: (id) =>
-          set((st) => {
-            const sites = st.plan.sites.filter((s) => s.id !== id);
-            if (!sites.length) sites.push(emptySite("New site"));
-            return {
-              plan: { ...st.plan, sites },
-              activeSiteId: st.activeSiteId === id ? sites[0].id : st.activeSiteId,
-            };
-          }),
+        removeSite: (id) => {
+          const st = get();
+          const sites = st.plan.sites.filter((s) => s.id !== id);
+          if (sites.length === st.plan.sites.length) return;
+          // The tab bar is never empty, so removing the last site leaves a fresh one.
+          if (!sites.length) sites.push(emptySite("New site"));
+          write(() => ({ ...st.plan, sites }), undefined, {
+            activeSiteId: st.activeSiteId === id ? sites[0].id : st.activeSiteId,
+          });
+        },
 
         addNode: (recipe, position) =>
           mutate((s) => {
@@ -169,10 +238,16 @@ export const usePlan = create<PlanState>()(
         // Patches only ever touch fields shared by both node kinds or fields of the
         // node's own kind, but the spread widens the union, so it needs re-narrowing.
         updateNode: (id, patch) =>
-          mutate((s) => ({
-            ...s,
-            nodes: s.nodes.map((n) => (n.id === id ? ({ ...n, ...patch } as PlanNode) : n)),
-          })),
+          mutate(
+            (s) => ({
+              ...s,
+              nodes: s.nodes.map((n) => (n.id === id ? ({ ...n, ...patch } as PlanNode) : n)),
+            }),
+            // Tagged by which fields are being written, so a drag collapses into one
+            // step with the rest of that drag, but the count you change straight after
+            // it stays a step of its own.
+            `node:${id}:${Object.keys(patch).sort().join(",")}`,
+          ),
         removeNode: (id) =>
           mutate((s) => ({
             ...s,
@@ -199,10 +274,14 @@ export const usePlan = create<PlanState>()(
               : { ...s, imports: [...s.imports, { id: uid(), item, perMinute, from: sourceSiteId }] };
           }),
         updateFlow: (kind, id, patch) =>
-          mutate((s) => ({
-            ...s,
-            [kind]: s[kind].map((f) => (f.id === id ? { ...f, ...patch } : f)),
-          })),
+          mutate(
+            (s) => ({
+              ...s,
+              [kind]: s[kind].map((f) => (f.id === id ? { ...f, ...patch } : f)),
+            }),
+            // Typing a rate fires an edit per digit; they are one step.
+            `flow:${kind}:${id}`,
+          ),
         removeFlow: (kind, id) =>
           mutate((s) => ({ ...s, [kind]: s[kind].filter((f) => f.id !== id) })),
 
@@ -215,10 +294,13 @@ export const usePlan = create<PlanState>()(
             return perMinute > 0
               ? { ...s, imports: [...rest, { id: uid(), item, perMinute }] }
               : { ...s, imports: rest };
-          }),
+          }, `supply:${item}`),
 
         setSinkPosition: (key, position) =>
-          mutate((s) => ({ ...s, sinkPositions: { ...s.sinkPositions, [key]: position } })),
+          mutate(
+            (s) => ({ ...s, sinkPositions: { ...s.sinkPositions, [key]: position } }),
+            `sink:${key}`,
+          ),
 
         addConnection: (from, to, item) =>
           mutate((s) => {
@@ -268,14 +350,22 @@ export const usePlan = create<PlanState>()(
             };
           }),
 
+        // Both of these are undoable like anything else, which is the difference between
+        // opening a file you were unsure about and losing an afternoon to it.
         replacePlan: (plan) =>
-          set({ plan, activeSiteId: plan.sites[0]?.id ?? "", selectedNodeId: null }),
+          write(() => plan, undefined, {
+            activeSiteId: plan.sites[0]?.id ?? "",
+            selectedNodeId: null,
+          }),
 
         // Unlike replacePlan, this never removes a site, so whatever tab you were on is
         // still there afterwards and you stay put — being thrown to someone else's site
         // on every exchange would lose your place a dozen times a session.
-        mergePlan: (incoming, accept) =>
-          set((st) => ({ plan: applyMerge(st.plan, incoming, accept) })),
+        mergePlan: (incoming, accept) => write((plan) => applyMerge(plan, incoming, accept)),
+
+        history: emptyHistory(),
+        undo: () => travel(undo(get().history, { plan: get().plan, siteId: get().activeSiteId })),
+        redo: () => travel(redo(get().history, { plan: get().plan, siteId: get().activeSiteId })),
       };
     },
     {
