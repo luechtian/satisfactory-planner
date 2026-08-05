@@ -4,6 +4,7 @@ import type { Db } from "../core/data";
 import { layoutSite } from "../core/layout";
 import { exportsOf } from "../core/overview";
 import { solveSite } from "../core/solver";
+import { applyMerge } from "../core/transfer";
 import type {
   ExtractorNode, MachineNode, Plan, PlanFlow, PlanNode, Purity, Site,
 } from "../core/types";
@@ -66,6 +67,8 @@ interface PlanState {
   solve: (db: Db) => { added: number; diverged: boolean };
   tidy: (db: Db) => void;
   replacePlan: (plan: Plan) => void;
+  /** fold the accepted sites of an incoming file into this plan, keeping the rest */
+  mergePlan: (incoming: Plan, accept: string[]) => void;
 }
 
 const initial: Plan = { version: 1, sites: [emptySite("New site")] };
@@ -267,6 +270,12 @@ export const usePlan = create<PlanState>()(
 
         replacePlan: (plan) =>
           set({ plan, activeSiteId: plan.sites[0]?.id ?? "", selectedNodeId: null }),
+
+        // Unlike replacePlan, this never removes a site, so whatever tab you were on is
+        // still there afterwards and you stay put — being thrown to someone else's site
+        // on every exchange would lose your place a dozen times a session.
+        mergePlan: (incoming, accept) =>
+          set((st) => ({ plan: applyMerge(st.plan, incoming, accept) })),
       };
     },
     {

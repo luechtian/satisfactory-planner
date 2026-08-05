@@ -614,3 +614,85 @@ button, input, select { font: inherit; color: inherit; }
 .react-flow__minimap { border: 1px solid var(--line); border-radius: 5px; }
 .react-flow__attribution { background: transparent; }
 .react-flow__attribution a { color: var(--edge); }
+
+/* ---------------------------------------------------------------- transfer */
+
+/* Native <dialog>, so the backdrop, Escape and focus trapping are the browser's job. */
+.sheet {
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: min(38rem, calc(100vh - 4rem));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  color: var(--fg);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .45);
+}
+.sheet::backdrop { background: rgba(6, 7, 10, .6); }
+.sheet__head { padding: 1rem 1.1rem .7rem; border-bottom: 1px solid var(--line); }
+.sheet__title { margin: 0; font-size: 1rem; font-weight: 600; }
+.sheet__head .hint { max-width: 46ch; }
+/* The list is the only part that scrolls, so the buttons never leave the viewport. */
+.sheet__body { padding: .6rem 1.1rem 1rem; overflow-y: auto; max-height: 24rem; }
+.sheet__tools { display: flex; gap: .3rem; margin-bottom: .5rem; }
+.sheet__group { margin-bottom: .8rem; }
+.sheet__grouphead {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .64rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 600;
+  padding: .3rem .1rem;
+  cursor: pointer;
+}
+.sheet__grouphead:hover { color: var(--accent); }
+.sheet__row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .32rem .1rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.sheet__row:hover { background: var(--bg-3); }
+.sheet__name { flex: 1; font-size: .86rem; }
+.sheet__foot {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .7rem 1.1rem;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+/* Pushes everything after it to the right, leaving the destructive action alone on the
+   left where it cannot be hit while reaching for Import. */
+.sheet__count { margin-left: auto; color: var(--muted); font-size: .78rem; }
+.sheet__foot .btn--primary { padding: .35rem 1rem; }
+.sheet__warn {
+  margin: .8rem 0 0;
+  padding: .5rem .6rem;
+  border-left: 2px solid var(--accent);
+  background: var(--bg-3);
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.45;
+}
+.btn--danger { color: var(--neg); }
+.btn--danger:hover:not(:disabled) { border-color: var(--neg); }
+.badge {
+  font-size: .64rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 600;
+  padding: .1rem .4rem;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.badge--new { background: var(--bg-3); color: var(--pos); }
+.badge--replace { background: var(--bg-3); color: var(--accent); }

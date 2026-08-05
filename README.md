@@ -79,8 +79,19 @@ targets, imports and hand-drawn belts all survive a reload and a browser restart
 - clearing site data wipes them, and private windows lose them on close;
 - two tabs on the same plan will clobber each other, last write wins.
 
-**Export** writes a JSON file. That is the only durable copy, and the only way to hand a
-plan to someone else.
+**Export** writes a JSON file, and you pick which sites go into it — one site, a group,
+or the lot. That is the only durable copy, and the only way to hand work to someone else.
+
+**Import** merges rather than replaces. The file is listed out first, each site marked
+*new* or *replaces yours*, and you tick what to take — so two people can swap sites
+regularly without either standing on the other's work. Sites are matched on an internal
+id, which is shared exactly when a site came from the other person's export in the first
+place; ones you each built separately stay separate however alike their names. Restoring
+a whole backup is still there, behind **Replace whole plan**.
+
+A link pointing at a site that did not travel with the file is kept, not stripped. It
+shows as a broken link on the **All sites** page and reconnects on its own the day that
+site is imported too.
 
 ## How the solver works
 
@@ -107,13 +118,17 @@ things a naive expansion gets wrong:
 npm test
 ```
 
-Vitest, no browser, ~300ms. Two suites:
+Vitest, no browser, under a second. Three suites:
 
 - `tests/solver.test.ts` — balances, whole-machine derivation, byproduct credit, water
   loops, idempotent solving, cross-site links and derived exports.
 - `tests/routing.test.ts` — what the canvas connects to what. Every case in it is a bug
   that shipped: a machine recycling its own input becoming unreachable, hand-drawn belts
   being silently topped up from elsewhere, import and export nodes losing their wires.
+- `tests/transfer.test.ts` — exchanging sites between two plans: what a partial export
+  carries, what replaces what on the way back in, and the links that dangle until the
+  site they name turns up. Mostly one question asked several ways — does taking someone
+  else's file ever take your own work with it.
 
 That second file is why `src/core/routing.ts` exists as its own module. The logic used to
 live inside a `useMemo` in the canvas component, where none of it could be tested — and
@@ -158,6 +173,7 @@ src/core/solver.ts        forward + backward passes
 src/core/layout.ts        layered auto-layout
 src/core/routing.ts       what connects to what, and at what rate
 src/core/overview.ts      cross-site rollup and links
+src/core/transfer.ts      partial export, merging a file in
 src/store/planStore.ts    zustand state, localStorage
 src/ui/                   canvas, nodes, panels, tabs
 ```

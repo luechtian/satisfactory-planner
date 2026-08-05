@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { loadDb, type Db } from "./core/data";
 import { exportsOf } from "./core/overview";
 import { evaluateSite } from "./core/solver";
-import type { Plan } from "./core/types";
 import { usePlan } from "./store/planStore";
 import { BalancePanel } from "./ui/BalancePanel";
 import { Canvas } from "./ui/Canvas";
 import { Overview } from "./ui/Overview";
+import { PlanTransfer } from "./ui/PlanTransfer";
 import { Sidebar } from "./ui/Sidebar";
 import { SiteTabs } from "./ui/SiteTabs";
 import "./styles.css";
@@ -27,7 +27,7 @@ export default function App() {
 function Planner({ db }: { db: Db }) {
   const plan = usePlan((s) => s.plan);
   const activeSiteId = usePlan((s) => s.activeSiteId);
-  const { setActiveSite, replacePlan } = usePlan();
+  const { setActiveSite } = usePlan();
 
   const theme = usePlan((s) => s.theme);
   const toggleTheme = usePlan((s) => s.toggleTheme);
@@ -73,7 +73,7 @@ function Planner({ db }: { db: Db }) {
           >
             {theme === "dark" ? "☀" : "☾"}
           </button>
-          <PlanIO plan={plan} onLoad={replacePlan} />
+          <PlanTransfer plan={plan} />
         </div>
       </header>
 
@@ -113,43 +113,3 @@ function Planner({ db }: { db: Db }) {
   );
 }
 
-/** Plans live in localStorage; this is the escape hatch for backup and sharing. */
-function PlanIO({ plan, onLoad }: { plan: Plan; onLoad: (p: Plan) => void }) {
-  const file = useRef<HTMLInputElement>(null);
-
-  const save = () => {
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(plan, null, 2)], { type: "application/json" }),
-    );
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "satisfactory-plan.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const load = async (f: File) => {
-    try {
-      const parsed = JSON.parse(await f.text()) as Plan;
-      if (parsed?.version !== 1 || !Array.isArray(parsed.sites)) throw new Error("bad plan file");
-      onLoad(parsed);
-    } catch (e) {
-      alert(`Could not load plan: ${(e as Error).message}`);
-    }
-  };
-
-  return (
-    <div className="io">
-      <button className="btn" onClick={save}>Export</button>
-      <button className="btn" onClick={() => file.current?.click()}>Import</button>
-      <input
-        ref={file} type="file" accept="application/json" hidden
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) load(f);
-          e.target.value = "";
-        }}
-      />
-    </div>
-  );
-}
