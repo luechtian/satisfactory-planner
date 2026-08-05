@@ -830,3 +830,7 @@ button, input, select { font: inherit; color: inherit; }
    with the single-option steps quietly missing. */
 .pick__only { font-size: .78rem; padding: .1rem 0; }
 .sheet .search { width: 100%; }
+
+/* How far a surplus runs past what was asked for. Sits under the number rather than
+   beside it, because the column is narrow and the number is what you scan for. */
+.bal__note { font-size: .66rem; font-weight: 400; white-space: nowrap; }

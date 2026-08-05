@@ -25,6 +25,7 @@ vi.hoisted(() => {
 import { readFileSync } from "node:fs";
 import { indexDb, type Db } from "../src/core/data";
 import { emptyHistory } from "../src/core/history";
+import { evaluateSite } from "../src/core/solver";
 import { isExtractor, type Plan, type Site } from "../src/core/types";
 import { usePlan } from "../src/store/planStore";
 
@@ -127,51 +128,64 @@ describe("folding panel sections", () => {
   });
 });
 
-describe("solving with chosen recipes", () => {
+describe("solving", () => {
   const IRON = "Desc_IronIngot_C";
   const PURE = "Recipe_Alternate_PureIronIngot_C";
+  const target = (perMinute: number) => [{ id: "t", item: IRON, perMinute }];
 
-  const withTarget = () =>
+  const bare = () =>
     usePlan.setState({
-      plan: {
-        version: 1,
-        sites: [{ ...site("a"), targets: [{ id: "t", item: IRON, perMinute: 60 }] }, site("b")],
-      },
+      plan: { version: 1, sites: [site("a"), site("b")] },
       activeSiteId: "a",
       history: emptyHistory(),
     });
 
-  it("writes the choices along with the solved nodes", () => {
-    withTarget();
-    st().solve(db, { [IRON]: PURE });
+  it("writes the recipes it was told to use", () => {
+    bare();
+    st().solve(db, { targets: target(60), recipeChoice: { [IRON]: PURE } });
 
     const solved = st().plan.sites[0];
     expect(solved.recipeChoice).toEqual({ [IRON]: PURE });
     expect(solved.nodes.some((n) => !isExtractor(n) && n.recipe === PURE)).toBe(true);
   });
 
-  it("is one undo step, not one for the choice and one for the solve", () => {
-    withTarget();
-    st().solve(db, { [IRON]: PURE });
+  it("remembers the target without letting it bind", () => {
+    bare();
+    st().solve(db, { targets: target(60) });
+
+    // Kept, so the dialog opens where you left it and the site records its intent...
+    expect(st().plan.sites[0].targets).toEqual(target(60));
+    // ...but the balance judges the site on what it makes, not what it was asked for.
+    const bal = evaluateSite(db, st().plan.sites[0]).balances.find((b) => b.item === IRON)!;
+    expect(bal.committed).toBe(0);
+    expect(bal.net).toBeGreaterThanOrEqual(60);
+  });
+
+  it("is one undo step, not one per thing it was given", () => {
+    bare();
+    st().solve(db, { targets: target(60), recipeChoice: { [IRON]: PURE } });
 
     st().undo();
-    expect(st().plan.sites[0].recipeChoice).toBeUndefined();
-    expect(st().plan.sites[0].nodes).toHaveLength(0);
+    const back = st().plan.sites[0];
+    expect(back.targets).toEqual([]);
+    expect(back.recipeChoice).toBeUndefined();
+    expect(back.nodes).toHaveLength(0);
   });
 
-  it("stores nothing at all rather than an empty map", () => {
+  it("stores no recipes at all rather than an empty map", () => {
     // So a site solved with everything left on Default serialises exactly like one from
     // before any of this existed, instead of growing a "recipeChoice": {}.
-    withTarget();
-    st().solve(db, {});
+    bare();
+    st().solve(db, { targets: target(60), recipeChoice: {} });
     expect(st().plan.sites[0].recipeChoice).toBeUndefined();
   });
 
-  it("keeps existing pins when solved without any choices", () => {
-    withTarget();
-    st().solve(db, { [IRON]: PURE });
+  it("keeps what the site already had when solved with nothing new", () => {
+    bare();
+    st().solve(db, { targets: target(60), recipeChoice: { [IRON]: PURE } });
     st().solve(db);
     expect(st().plan.sites[0].recipeChoice).toEqual({ [IRON]: PURE });
+    expect(st().plan.sites[0].targets).toEqual(target(60));
   });
 });
 

@@ -73,6 +73,41 @@ describe("forward pass", () => {
   });
 });
 
+describe("a target is a seed, not a standing obligation", () => {
+  const ingot = item("Aluminum Ingot");
+  const made = () => site({ nodes: [building("Aluminum Ingot", 6)] });
+
+  it("stops counting against the balance once the chain exists", () => {
+    const s = site({
+      ...made(),
+      targets: [{ id: "t", item: ingot, perMinute: 360 }],
+    });
+    const bal = evaluateSite(db, s).balances.find((b) => b.item === ingot)!;
+    expect(bal.committed).toBe(0);
+    // 360/min made and nobody has claimed it, so 360/min is spare — which is the fact
+    // worth knowing. Judged against the target it would read a useless net 0.
+    expect(bal.net).toBe(360);
+  });
+
+  it("still counts what another site draws", () => {
+    const bal = evaluateSite(db, made(), [{ item: ingot, perMinute: 100 }])
+      .balances.find((b) => b.item === ingot)!;
+    expect(bal.committed).toBe(100);
+    expect(bal.net).toBe(260);
+  });
+
+  it("still reports a target nothing can make", () => {
+    // The regression this change invites. Nothing on the site consumes Water, so the
+    // target is the only reason a deficit exists at all — solveSite has to fold its
+    // targets back in, or it would report a plan with no way to make the thing asked for
+    // as perfectly fine.
+    const s = site({ targets: [{ id: "t", item: item("Water"), perMinute: 120 }] });
+    expect(solveSite(db, s, { autoExtractors: false }).feeds).toEqual([
+      { item: item("Water"), perMinute: 120 },
+    ]);
+  });
+});
+
 describe("backward pass", () => {
   it("re-derives whole buildings up the chain", () => {
     // Scrap rounds 1.5 -> 2, which pushes Alumina 3 -> 4. Matches the spreadsheet.

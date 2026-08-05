@@ -171,8 +171,16 @@ export interface ItemBalance {
   produced: number;
   consumed: number;
   imported: number;
-  target: number;
-  /** produced + imported - consumed - target; negative means the site is short */
+  /**
+   * Owed to other sites, because they import it from here.
+   *
+   * A site's own `targets` are deliberately *not* counted. A target is the seed you
+   * hand the solver to lay a chain out, not a standing promise the site is judged
+   * against forever — once the chain exists, what matters is what the site actually
+   * makes and who has claimed it.
+   */
+  committed: number;
+  /** produced + imported - consumed - committed; negative means the site is short */
   net: number;
 }
 

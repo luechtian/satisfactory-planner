@@ -7,7 +7,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import type { Db } from "../core/data";
 import type { ExportClaim } from "../core/overview";
-import { exportId, importId, isDerivedId, isHubId, routeGraph, targetId } from "../core/routing";
+import { exportId, importId, isDerivedId, isHubId, routeGraph } from "../core/routing";
 import { DISPLAY_EPS, fmt } from "../core/solver";
 import { isExtractor } from "../core/types";
 import type { Site, SiteResult } from "../core/types";
@@ -144,18 +144,14 @@ export function Canvas({
       };
     });
 
-    // Where material leaves: targets shipped out, plus exports other sites claim.
+    // Where material leaves: only what another site has claimed. A target is the seed
+    // you hand the solver, not a destination — drawing it put a card on the canvas that
+    // led nowhere and had to be deleted to get rid of. Exports lead somewhere real.
     // Derived every render — see OutputNode for why these are never stored.
-    const sinks = [
-      ...site.targets.map((f) => ({
-        key: targetId(f.item), item: f.item, perMinute: f.perMinute,
-        toName: undefined as string | undefined, toId: undefined as string | undefined,
-      })),
-      ...exports.map((e) => ({
-        key: exportId(e.toId, e.item), item: e.item, perMinute: e.perMinute,
-        toName: e.toName, toId: e.toId,
-      })),
-    ];
+    const sinks = exports.map((e) => ({
+      key: exportId(e.toId, e.item), item: e.item, perMinute: e.perMinute,
+      toName: e.toName as string | undefined, toId: e.toId as string | undefined,
+    }));
 
     const right = Math.max(...site.nodes.map((n) => n.position.x), 0);
     const feederY = (item: string) => {

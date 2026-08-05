@@ -69,8 +69,9 @@ A recurring rule, and the source of several past bugs:
 - **Exports** are read off the *consuming* site's import (`exportsOf` in `core/overview.ts`), so a
   link has one record and the two ends cannot drift.
 - **Sink, source and manifold nodes** are synthesised every render with synthetic ids —
-  `target:`, `export:`, `import:`, `hub:`. They match no `PlanNode`, so `Canvas.onNodesChange` must
-  route them away from `updateNode`; only their drag position is kept, in `site.sinkPositions`.
+  `export:`, `import:`, `hub:`. They match no `PlanNode`, so `Canvas.onNodesChange` must route
+  them away from `updateNode`; only their drag position is kept, in `site.sinkPositions`.
+  (`target:` is still recognised by `isDerivedId` but nothing builds one — see targets below.)
 - Hand-drawn belts (`site.connections`) *are* stored, because rates alone cannot say whether two
   water extractors feed one pool or two sub-factories.
 
@@ -108,11 +109,20 @@ after a solve. `alternativesFor` in `core/data.ts` is what the picker offers —
 `producersOf`, because a recipe that yields an item only as a byproduct must never be offered as
 a way to *make* it.
 
+**A site's `targets` are not demand.** `evaluateSite`'s third argument is *composed by the
+caller*: the UI passes only `exportsOf` (what other sites import, which are real
+obligations), while `solveSite` folds the site's own targets in — without that, a site that
+cannot make its target would report nothing wrong, since nothing consumes the item either.
+`ItemBalance.committed` is named for what it now means. Targets are remembered so the Solve
+dialog opens pre-filled and the surplus can say how far past them it runs, but they neither
+bind the balance nor draw a node.
+
 `SolveResult.chain` is the list of steps the solve will run, which is what makes the Solve dialog
 possible: **the set of recipes worth choosing between is only knowable after solving**, since which
 items are involved depends on the recipes picked. `SolveSheet` therefore re-runs `solveSite` as a
-dry run on every change — it is pure and cheap — and commits through `solve(db, choices)`, which
-writes the pins and the nodes in one `mutate` so the whole thing is a single undo step.
+dry run on every change — it is pure and cheap — and commits through `solve(db, setup)`, which
+writes the targets, the pins and the nodes in one `mutate` so the whole thing is a single undo
+step.
 
 `EPS` (1e-6) is arithmetic tolerance; `DISPLAY_EPS` (1e-3) is what counts as short or spare. Use
 `DISPLAY_EPS` for anything the user sees, or 4-decimal clocks leave phantom shortages.

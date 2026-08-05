@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Db } from "../core/data";
 import type { ExportClaim } from "../core/overview";
-import { exportId, importId, targetId } from "../core/routing";
+import { exportId, importId } from "../core/routing";
 import { DISPLAY_EPS, fmt, nodesMaking, nodesTaking } from "../core/solver";
 import type { Site, SiteResult } from "../core/types";
 import { usePlan } from "../store/planStore";
@@ -30,6 +30,18 @@ export function BalancePanel({
 
   const pinCount = Object.keys(site.recipeChoice ?? {}).length;
 
+  /**
+   * How far past the remembered target a surplus runs.
+   *
+   * Only knowable because the target is kept after solving. Whole buildings overshoot —
+   * ask for 17 Reinforced Iron Plate and you get 20 — and this is the difference between
+   * "20/min available" and "20/min, 3 of which nobody asked for".
+   */
+  const overTarget = (item: string, net: number) => {
+    const asked = site.targets.find((t) => t.item === item)?.perMinute;
+    return asked !== undefined && net - asked > DISPLAY_EPS ? net - asked : undefined;
+  };
+
   // Raws have their own section with editable supply, so listing them here too would
   // just be noise — every ore would sit in shortages permanently.
   const isRaw = (item: string) => !!db.items[item]?.isRawResource;
@@ -38,13 +50,12 @@ export function BalancePanel({
 
   /**
    * Everywhere a shortage of `item` is felt: the buildings drawing on it, then the
-   * targets and exports waiting on it. A target with nothing to feed it has no consumer
-   * at all, and the sink node is the only place that shortage exists.
+   * exports waiting on it. Targets are not here — they no longer draw a node, and a
+   * shortage against one is not a place on the canvas you can be sent to.
    */
   const feltAt = (item: string) => [
     ...new Set([
       ...nodesTaking(result, item),
-      ...site.targets.filter((f) => f.item === item).map(() => targetId(item)),
       ...exports.filter((e) => e.item === item).map((e) => exportId(e.toId, item)),
     ]),
   ];
@@ -76,10 +87,9 @@ export function BalancePanel({
 
       <button
         className="btn btn--primary"
-        // An export is demand too — a site that exists only to supply another is
-        // still solvable.
-        disabled={!site.targets.length && !exports.length}
-        // Opens the chain for review rather than rewriting the site on the spot: the
+        // Never disabled: what to solve for is stated inside, so gating the button on
+        // having already stated it elsewhere locked you out of the only place you could.
+        // Opens the chain for review rather than rewriting the site on the spot — the
         // recipes it will use are only knowable once the chain is worked out, and this
         // is the one moment choosing between them changes anything.
         onClick={() => setSolving(true)}
@@ -101,8 +111,8 @@ export function BalancePanel({
         <SolveSheet
           db={db} site={site} exports={exports} trimClocks={trimClocks}
           onClose={() => setSolving(false)}
-          onSolve={(choices) => {
-            const r = solve(db, choices);
+          onSolve={(setup) => {
+            const r = solve(db, setup);
             setSolving(false);
             setStatus(
               r.diverged
@@ -112,16 +122,8 @@ export function BalancePanel({
           }}
         />
       )}
-      {!site.targets.length && !exports.length && (
-        <p className="hint">Add a target below to enable solving.</p>
-      )}
       {status && <p className="hint">{status}</p>}
 
-      <FlowEditor
-        db={db} title="Targets" kind="targets" flows={site.targets}
-        hint="What this site must ship out."
-        onAdd={addFlow} onUpdate={updateFlow} onRemove={removeFlow}
-      />
       <FlowEditor
         db={db} title="Imports" kind="imports" flows={site.imports.filter((f) => !isRaw(f.item))}
         hint="Manufactured parts belted or trained in, so they aren't counted as short."
@@ -157,6 +159,10 @@ export function BalancePanel({
       <BalanceTable
         db={db} title="Surplus" rows={surpluses} tone="good" empty="Nothing spare."
         onGo={(i) => walkTo(i, madeAt(i))} placesFor={madeAt} goWhat="comes from"
+        noteFor={(b) => {
+          const over = overTarget(b.item, b.net);
+          return over === undefined ? undefined : `${fmt(over)} over target`;
+        }}
       />
     </aside>
   );
@@ -197,7 +203,7 @@ function RawSupply({
           {raws.map((b) => {
             // Gross demand, not net — netting extraction out of it hid the fact that a
             // miner was covering the resource at all.
-            const need = b.consumed + b.target;
+            const need = b.consumed + b.committed;
             const short = b.net < -DISPLAY_EPS;
             return (
               <tr key={b.item}>
@@ -304,7 +310,7 @@ function FlowEditor({
 }
 
 function BalanceTable({
-  db, title, rows, tone, empty, onGo, placesFor, goWhat,
+  db, title, rows, tone, empty, onGo, placesFor, goWhat, noteFor,
 }: {
   db: Db;
   title: string;
@@ -316,6 +322,8 @@ function BalanceTable({
   placesFor?: (item: string) => string[];
   /** fills "Show where this …", e.g. "is needed" */
   goWhat?: string;
+  /** an aside for the row, e.g. how far past what was asked for it runs */
+  noteFor?: (b: SiteResult["balances"][number]) => string | undefined;
 }) {
   return (
     <Section name={title} count={rows.length}>
@@ -345,8 +353,11 @@ function BalanceTable({
                     )}
                   </td>
                   <td className="num muted">{fmt(b.produced)}</td>
-                  <td className="num muted">−{fmt(b.consumed + b.target)}</td>
-                  <td className={`num ${tone === "bad" ? "neg" : "pos"}`}>{fmt(b.net)}</td>
+                  <td className="num muted">−{fmt(b.consumed + b.committed)}</td>
+                  <td className={`num ${tone === "bad" ? "neg" : "pos"}`}>
+                    {fmt(b.net)}
+                    {noteFor?.(b) && <div className="bal__note muted">{noteFor(b)}</div>}
+                  </td>
                 </tr>
               );
             })}

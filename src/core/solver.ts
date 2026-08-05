@@ -28,8 +28,15 @@ export const effectiveOf = (n: PlanNode) => n.count * (n.clock / 100);
 export function evaluateSite(
   db: Db,
   site: Site,
-  /** rates other sites draw from this one; obligations, so they count as targets */
-  exports: ReadonlyArray<{ item: string; perMinute: number }> = [],
+  /**
+   * Demand from outside the site's own machinery — normally just what other sites
+   * import from here, which are obligations and so count against the balance.
+   *
+   * Composed by the caller rather than read off the site, because the two callers want
+   * different things: the panel judges a site on what it owes, while `solveSite` folds
+   * the site's own targets in here so it can still tell you when nothing can make one.
+   */
+  demand: ReadonlyArray<{ item: string; perMinute: number }> = [],
 ): SiteResult {
   const nodes: NodeResult[] = [];
   const produced: Record<string, number> = {};
@@ -72,20 +79,19 @@ export function evaluateSite(
 
   const imported: Record<string, number> = {};
   for (const f of site.imports) imported[f.item] = (imported[f.item] ?? 0) + f.perMinute;
-  const targeted: Record<string, number> = {};
-  for (const f of site.targets) targeted[f.item] = (targeted[f.item] ?? 0) + f.perMinute;
-  for (const f of exports) targeted[f.item] = (targeted[f.item] ?? 0) + f.perMinute;
+  const committed: Record<string, number> = {};
+  for (const f of demand) committed[f.item] = (committed[f.item] ?? 0) + f.perMinute;
 
   const keys = new Set([
     ...Object.keys(produced), ...Object.keys(consumed),
-    ...Object.keys(imported), ...Object.keys(targeted),
+    ...Object.keys(imported), ...Object.keys(committed),
   ]);
 
   const balances: ItemBalance[] = [...keys]
     .map((item) => {
       const p = produced[item] ?? 0, c = consumed[item] ?? 0;
-      const i = imported[item] ?? 0, t = targeted[item] ?? 0;
-      return { item, produced: p, consumed: c, imported: i, target: t, net: p + i - c - t };
+      const i = imported[item] ?? 0, t = committed[item] ?? 0;
+      return { item, produced: p, consumed: c, imported: i, committed: t, net: p + i - c - t };
     })
     .sort((a, b) => a.net - b.net || db.itemName(a.item).localeCompare(db.itemName(b.item)));
 
@@ -100,7 +106,7 @@ export function evaluateSite(
       .filter(
         (b) =>
           db.items[b.item]?.isRawResource &&
-          (b.consumed > EPS || b.imported > EPS || b.target > EPS),
+          (b.consumed > EPS || b.imported > EPS || b.committed > EPS),
       )
       .sort((a, b) => db.itemName(a.item).localeCompare(db.itemName(b.item))),
     totalPowerMW: nodes.reduce((s, n) => s + n.powerMW, 0),
@@ -374,8 +380,15 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
   const scaled = site.nodes.map(
     (n) => ({ ...n, count: counts[n.id] ?? n.count, clock: clocks[n.id] ?? n.clock }) as PlanNode,
   );
+  // The same targets-and-exports the solve was aimed at, handed to the forward pass so
+  // it judges the result against what was asked for. This is the *only* place a site's
+  // own targets count as demand: without them here, a site that cannot make its target
+  // at all would report nothing wrong, since nothing consumes the item either — the
+  // deficit exists only because you asked for it.
+  const asked = Object.entries(demand).map(([item, perMinute]) => ({ item, perMinute }));
+
   let solved: Site = { ...site, nodes: [...scaled, ...added] };
-  let balances = evaluateSite(db, solved, opts.exports).balances;
+  let balances = evaluateSite(db, solved, asked).balances;
 
   // Building counts were fixed above treating uncovered raws as freely available, so an
   // extractor sized to the exact shortfall closes it without disturbing the chain.
@@ -406,7 +419,7 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
       lane++;
     }
     solved = { ...site, nodes: [...scaled, ...added] };
-    balances = evaluateSite(db, solved, opts.exports).balances;
+    balances = evaluateSite(db, solved, asked).balances;
   }
 
   const feeds = balances

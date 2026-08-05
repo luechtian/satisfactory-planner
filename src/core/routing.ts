@@ -53,12 +53,17 @@ export interface RouteInput {
  * you to it. They were string literals in the canvas until the second caller appeared.
  */
 export const hubId = (item: string) => `hub:${item}`;
-export const targetId = (item: string) => `target:${item}`;
 export const exportId = (toId: string, item: string) => `export:${toId}:${item}`;
 export const importId = (flowId: string) => `import:${flowId}`;
 
 export const isHubId = (id: string | null | undefined) => !!id?.startsWith("hub:");
-/** True for any node the canvas synthesised, none of which match a stored PlanNode. */
+/**
+ * True for any node the canvas synthesised, none of which match a stored PlanNode.
+ *
+ * `target:` is still recognised though nothing builds one any more: plans saved while
+ * targets drew a node can carry remembered positions and hand-drawn belts pointing at
+ * one, and those are better ignored than mistaken for a real node.
+ */
 export const isDerivedId = (id: string) =>
   id.startsWith("target:") || id.startsWith("export:") ||
   id.startsWith("import:") || id.startsWith("hub:");

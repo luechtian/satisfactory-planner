@@ -155,7 +155,7 @@ export function summarisePlan(db: Db, plan: Plan): PlanSummary {
 
     for (const b of result.raws) {
       const row = rawAcc.get(b.item) ?? { item: b.item, need: 0, onSite: 0, belt: 0, net: 0 };
-      row.need += b.consumed + b.target;
+      row.need += b.consumed + b.committed;
       row.onSite += b.produced;
       row.belt += b.imported;
       row.net += b.net;

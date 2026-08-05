@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { alternativesFor, type Db } from "../core/data";
 import { fmt, solveSite } from "../core/solver";
-import type { Site } from "../core/types";
+import type { PlanFlow, Site } from "../core/types";
 import { Sheet } from "./Sheet";
+
+const uid = () => Math.random().toString(36).slice(2, 9);
 
 /**
  * Set up a solve, then run it.
@@ -23,16 +25,27 @@ export function SolveSheet({
   site: Site;
   exports: ReadonlyArray<{ item: string; perMinute: number }>;
   trimClocks: boolean;
-  onSolve: (choices: Record<string, string>) => void;
+  onSolve: (setup: { targets: PlanFlow[]; recipeChoice: Record<string, string> }) => void;
   onClose: () => void;
 }) {
-  // Starts from what is already pinned, and is only written back if you go through with
-  // the solve — backing out leaves the site exactly as it was.
+  // Both start from what the site remembers and are only written back if you go through
+  // with the solve — backing out leaves the site exactly as it was.
   const [draft, setDraft] = useState<Record<string, string>>(() => site.recipeChoice ?? {});
+  const [targets, setTargets] = useState<PlanFlow[]>(() => site.targets);
+  const [adding, setAdding] = useState("");
 
+  const aimedAt = useMemo(() => ({ ...site, targets }), [site, targets]);
   const preview = useMemo(
-    () => solveSite(db, site, { trimClocks, recipeChoice: draft, exports }),
-    [db, site, trimClocks, draft, exports],
+    () => solveSite(db, aimedAt, { trimClocks, recipeChoice: draft, exports }),
+    [db, aimedAt, trimClocks, draft, exports],
+  );
+
+  const makeable = useMemo(
+    () =>
+      Object.values(db.items)
+        .filter((i) => db.producersOf[i.class]?.length || i.isRawResource)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [db],
   );
 
   const pick = (item: string, recipe: string | undefined) =>
@@ -46,16 +59,21 @@ export function SolveSheet({
   const pinned = Object.keys(draft).length;
   const shortOf = preview.feeds.filter((f) => !db.items[f.item]?.isRawResource);
 
+  const setRate = (id: string, perMinute: number) =>
+    setTargets((ts) => ts.map((t) => (t.id === id ? { ...t, perMinute } : t)));
+  const setItem = (id: string, item: string) =>
+    setTargets((ts) => ts.map((t) => (t.id === id ? { ...t, item } : t)));
+
   return (
     <Sheet
       title="Solve for targets"
-      hint="Every step the solve will run. Change any of them and the rest follows — a different recipe needs different inputs."
+      hint="Say what the site should make. The chain below is what solving will build — change any step and the rest follows, since a different recipe needs different inputs."
       onClose={onClose}
       foot={
         <>
           {pinned > 0 && (
             <button className="btn btn--danger" onClick={() => setDraft({})}>
-              Reset choices
+              Reset recipes
             </button>
           )}
           <span className="sheet__count">
@@ -64,10 +82,66 @@ export function SolveSheet({
               : "nothing to add"}
           </span>
           <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn btn--primary" onClick={() => onSolve(draft)}>Solve</button>
+          <button
+            className="btn btn--primary"
+            disabled={!targets.length && !exports.length}
+            onClick={() => onSolve({ targets, recipeChoice: draft })}
+          >
+            Solve
+          </button>
         </>
       }
     >
+      <h4 className="sheet__group-title">Make</h4>
+      <ul className="flows">
+        {targets.map((t) => (
+          <li key={t.id} className="flow">
+            <div className="flow__main">
+              <select value={t.item} onChange={(e) => setItem(t.id, e.target.value)}>
+                {makeable.map((i) => (
+                  <option key={i.class} value={i.class}>{i.name}</option>
+                ))}
+              </select>
+              <input
+                type="number" min={0} step={10} value={t.perMinute}
+                onChange={(e) => setRate(t.id, Number(e.target.value) || 0)}
+              />
+              <button
+                className="btn btn--icon"
+                onClick={() => setTargets((ts) => ts.filter((x) => x.id !== t.id))}
+              >
+                ×
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {!targets.length && !exports.length && (
+        <p className="muted pad">Nothing asked for yet — add an item to solve for.</p>
+      )}
+      {!targets.length && exports.length > 0 && (
+        <p className="muted pad">
+          Nothing asked for directly; solving will cover what other sites draw from here.
+        </p>
+      )}
+      <div className="flows__add">
+        <select value={adding} onChange={(e) => setAdding(e.target.value)}>
+          <option value="">add item…</option>
+          {makeable.map((i) => <option key={i.class} value={i.class}>{i.name}</option>)}
+        </select>
+        <button
+          className="btn"
+          disabled={!adding}
+          onClick={() => {
+            setTargets((ts) => [...ts, { id: uid(), item: adding, perMinute: 60 }]);
+            setAdding("");
+          }}
+        >
+          Add
+        </button>
+      </div>
+
+      <h4 className="sheet__group-title">Chain</h4>
       {preview.diverged && (
         <p className="sheet__warn">
           The chain did not settle — usually a recipe loop that never closes. Solving

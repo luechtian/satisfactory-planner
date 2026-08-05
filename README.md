@@ -43,13 +43,23 @@ sub-factories rather than a shared pool. A building that recycles its own input,
 Blender making Encased Uranium Cells, is shown as a net consumer until you wire one of
 those ports; then both run at gross rates so the returned fluid can go where you send it.
 You can wire straight to a manifold too, which puts that building on the pool and shows
-both its arms rather than one netted figure. Manifolds, imports, exports and targets can
-all be dragged where you want them; **Tidy layout** puts them back.
+both its arms rather than one netted figure. Manifolds, imports and exports can all be
+dragged where you want them; **Tidy layout** puts them back.
 
-**Shows its working before it rewrites anything.** **Solve for targets** lays out the
-chain it is about to build — every step, the recipe making it, its rate, its building and
-its inputs — and lets you change any of them first. 76 items can be made more than one
-way, and which alternate you have unlocked is half of what makes a base yours. Swap
+**Shows its working before it rewrites anything.** **Solve for targets** is where you say
+what the site should make, and it lays out the chain it is about to build — every step, the
+recipe making it, its rate, its building and its inputs — and lets you change any of them
+first.
+
+A target is a seed, not a promise. Once the chain exists it stops counting against the
+balance, so a site that makes 360 Aluminum Ingot/min reads **+360 spare** rather than a
+useless net zero — which is also what lets another site's shortfall find it. It is still
+remembered, so re-solving is a click and the site records what it was designed for; where
+whole buildings overshoot, the surplus says so (*20/min · 3 over target*). Only what
+another site actually imports counts as owed.
+
+The same dialog is where you choose recipes. 76 items can be made more than one way, and
+which alternate you have unlocked is half of what makes a base yours. Swap
 Aluminum Ingot for *Alternate: Pure Aluminum Ingot* and the rest of the list follows
 while you watch: Silica drops out, Water appears, because a different recipe needs
 different inputs. Nothing is written until you press Solve, choices stick to the site, and

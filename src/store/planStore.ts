@@ -83,10 +83,16 @@ interface PlanState {
   removeConnection: (id: string) => void;
 
   /**
-   * Run the solve. `choices` replaces the site's pinned recipes and is written with the
-   * result, so choosing a recipe and solving on it is one thing to undo rather than two.
+   * Run the solve.
+   *
+   * Anything in `setup` replaces what the site had and is written along with the result,
+   * so stating a target, picking recipes and solving on them is one thing to undo rather
+   * than three.
    */
-  solve: (db: Db, choices?: Record<string, string>) => { added: number; diverged: boolean };
+  solve: (
+    db: Db,
+    setup?: { targets?: PlanFlow[]; recipeChoice?: Record<string, string> },
+  ) => { added: number; diverged: boolean };
   tidy: (db: Db) => void;
   replacePlan: (plan: Plan) => void;
   /** fold the accepted sites of an incoming file into this plan, keeping the rest */
@@ -349,12 +355,17 @@ export const usePlan = create<PlanState>()(
         removeConnection: (id) =>
           mutate((s) => ({ ...s, connections: (s.connections ?? []).filter((c) => c.id !== id) })),
 
-        solve: (db, choices) => {
+        solve: (db, setup) => {
           const st = get();
-          const recipeChoice = choices ?? st.site().recipeChoice;
-          const result = solveSite(db, st.site(), {
+          const current = st.site();
+          const choices = setup?.recipeChoice;
+          const aimedAt: Site = setup?.targets
+            ? { ...current, targets: setup.targets }
+            : current;
+
+          const result = solveSite(db, aimedAt, {
             trimClocks: st.trimClocks,
-            recipeChoice,
+            recipeChoice: choices ?? current.recipeChoice,
             // A link is an obligation: solving the source must cover what it owes.
             exports: exportsOf(st.plan, st.activeSiteId),
           });
@@ -372,6 +383,10 @@ export const usePlan = create<PlanState>()(
             return {
               ...s,
               nodes: nodes.map((n) => ({ ...n, position: pos[n.id] ?? n.position })),
+              // Remembered, not binding: the balance ignores these, but keeping them
+              // means the dialog opens where you left it and the site still records
+              // what it was designed to make.
+              targets: setup?.targets ?? s.targets,
               recipeChoice: choices
                 ? (Object.keys(choices).length ? choices : undefined)
                 : s.recipeChoice,
