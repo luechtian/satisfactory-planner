@@ -69,6 +69,13 @@ while you watch: Silica drops out, Water appears, because a different recipe nee
 different inputs. Nothing is written until you press Solve, choices stick to the site, and
 the whole thing is one Ctrl+Z.
 
+**Knows a belt has a limit.** The solver counts buildings, not belts, so a perfectly
+balanced plan can still call for 1800 Iron Ore down one line. Set which belt and pipe you
+have unlocked and anything over that is marked on the canvas as *×2 lines* and listed
+under **Logistics**. Each arm of a manifold counts as its own line; the pool is not a
+line. Solids are checked against belts and fluids against pipes, which matters — 700/min
+fits a Mk.5 belt and does not fit a Mk.2 pipe.
+
 **Takes it back.** Ctrl+Z steps through anything that changed the plan — a solve that
 rewrote a site, a deleted tab, an import that turned out to be the wrong file — and
 Ctrl+Shift+Z puts it back. A drag is one step rather than two hundred, and typing a rate
@@ -148,7 +155,7 @@ things a naive expansion gets wrong:
 npm test
 ```
 
-Vitest, no browser, under a second. Five suites:
+Vitest, no browser, under a second. Six suites:
 
 - `tests/solver.test.ts` — balances, whole-building derivation, byproduct credit, water
   loops, idempotent solving, cross-site links and derived exports.
@@ -159,6 +166,9 @@ Vitest, no browser, under a second. Five suites:
   carries, what replaces what on the way back in, and the links that dangle until the
   site they name turns up. Mostly one question asked several ways — does taking someone
   else's file ever take your own work with it.
+- `tests/throughput.test.ts` — what one belt or pipe carries, and which arrows need
+  splitting across more than one. Mostly guarding that a gas is checked against a pipe
+  and not a belt, where it would look fine at any rate at all.
 - `tests/history.test.ts` — what counts as one undo step. A node drag fires an update per
   pointer move, so the whole difference between a usable undo and an unusable one is in
   the coalescing rules.
@@ -198,8 +208,6 @@ Current dump: **291 recipes** (111 alternate), 168 items, 17 buildings.
 - **Live comparison against a running game**, which would need the
   [FicsIt Remote Monitoring](https://docs.ficsit.app/ficsitremotemonitoring/latest/json/json.html)
   mod. Vanilla installs expose nothing.
-- **Belt and pipe throughput limits** — a Mk.6 belt caps at 1200/min and a Mk.2 pipe at
-  600 m³/min, so a plan can call for more than one line can physically carry.
 
 ## Project layout
 
@@ -213,6 +221,7 @@ src/core/routing.ts       what connects to what, and at what rate
 src/core/overview.ts      cross-site rollup and links
 src/core/transfer.ts      partial export, merging a file in
 src/core/history.ts       undo/redo snapshots and what counts as a step
+src/core/throughput.ts    belt and pipe limits, and what needs splitting
 src/store/planStore.ts    zustand state, localStorage
 src/ui/                   canvas, nodes, panels, tabs
 ```

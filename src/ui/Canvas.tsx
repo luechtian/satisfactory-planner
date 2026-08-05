@@ -7,7 +7,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import type { Db } from "../core/data";
 import type { ExportClaim } from "../core/overview";
-import { exportId, importId, isDerivedId, isHubId, routeGraph } from "../core/routing";
+import { exportId, importId, isDerivedId, isHubId } from "../core/routing";
+import type { RouteEdge, RouteHub } from "../core/routing";
 import { DISPLAY_EPS, fmt } from "../core/solver";
 import { isExtractor } from "../core/types";
 import type { Site, SiteResult } from "../core/types";
@@ -43,11 +44,14 @@ function spread<T extends { y: number }>(items: T[]): T[] {
 }
 
 export function Canvas({
-  db, site, result, exports, otherSites, onOpenSite,
+  db, site, result, routed, overLines, exports, otherSites, onOpenSite,
 }: {
   db: Db;
   site: Site;
   result: SiteResult;
+  routed: { edges: RouteEdge[]; hubs: RouteHub[] };
+  /** edge id -> lines it needs, for the ones one belt or pipe cannot carry */
+  overLines: Map<string, number>;
   exports: ExportClaim[];
   /** other sites, for naming where an import comes from */
   otherSites: Array<{ id: string; name: string }>;
@@ -211,41 +215,19 @@ export function Canvas({
       });
     }
 
-    // All the routing decisions live in core/routing so they can be tested; this
-    // only turns them into React Flow's shapes.
-    const flows = new Map<string, { item: string; nodeId: string; out: number; in: number }>();
-    const bump = (item: string, nodeId: string, side: "out" | "in", by: number) => {
-      const key = `${item}|${nodeId}`;
-      const rec = flows.get(key) ?? { item, nodeId, out: 0, in: 0 };
-      rec[side] += by;
-      flows.set(key, rec);
-    };
-    for (const r of result.nodes) {
-      for (const p of r.outputs) bump(p.item, r.nodeId, "out", p.perMinute);
-      for (const p of r.inputs) bump(p.item, r.nodeId, "in", p.perMinute);
-    }
-
-    const routed = routeGraph({
-      flows: [...flows.values()],
-      sinks: sinks.map((s) => ({ key: s.key, item: s.item, perMinute: s.perMinute })),
-      sources: sources.map((s) => ({ key: s.key, item: s.item, perMinute: s.perMinute })),
-      connections: site.connections ?? [],
-      positionOf: (id) =>
-        site.nodes.find((n) => n.id === id)?.position ??
-        sinkPos.get(id) ?? srcPos.get(id) ?? { x: 0, y: 0 },
-      isShort: (item) => {
-        const bal = result.balances.find((b) => b.item === item);
-        return !!bal && bal.net < -DISPLAY_EPS;
-      },
-    });
-
+    // Routing arrives already worked out — it depends on no position, so it is computed
+    // once alongside the balance and shared with the panel. This only shapes it for
+    // React Flow.
     const edges: Edge[] = routed.edges.map((e) => {
       const named = e.kind === "manual" || e.kind === "direct";
-      const label = e.under > DISPLAY_EPS
+      const lines = overLines.get(e.id) ?? 1;
+      const base = e.under > DISPLAY_EPS
         ? `${db.itemName(e.item)} ${fmt(e.rate)}/min · short ${fmt(e.under)}`
         : named
           ? `${db.itemName(e.item)} ${fmt(e.rate)}/min`
           : `${fmt(e.rate)}/min`;
+      // "×2 lines" rather than an error: it is buildable, just not down one belt.
+      const label = lines > 1 ? `${base} · ×${lines} lines` : base;
       return {
         id: e.id, source: e.from, target: e.to,
         sourceHandle: `out-${e.item}`, targetHandle: `in-${e.item}`,
@@ -255,6 +237,7 @@ export function Canvas({
           isDerivedId(e.to) && !isHubId(e.to) ? "edge--sink" : "",
           e.manual ? "edge--manual" : "",
           e.under > DISPLAY_EPS ? "edge--under" : "",
+          lines > 1 ? "edge--over" : "",
         ].filter(Boolean).join(" ") || undefined,
         deletable: e.kind === "manual",
         animated: e.short || e.under > DISPLAY_EPS,
@@ -297,7 +280,7 @@ export function Canvas({
     }
 
     return { nodes, edges };
-  }, [db, site, result, exports, otherSites, onOpenSite, updateNode, removeNode]);
+  }, [db, site, result, routed, overLines, exports, otherSites, onOpenSite, updateNode, removeNode]);
 
   const onNodesChange = (changes: NodeChange[]) => {
     for (const c of changes) {

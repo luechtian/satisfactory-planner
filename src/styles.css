@@ -894,3 +894,21 @@ button, input, select { font: inherit; color: inherit; }
   font-size: .64rem;
   font-weight: 700;
 }
+
+/* -------------------------------------------------------------- logistics */
+
+.tiers { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; margin-bottom: .5rem; }
+.tiers label { display: grid; gap: .1rem; font-size: .68rem; color: var(--muted); }
+.tiers select {
+  width: 100%;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: .22rem .3rem;
+  font-size: .78rem;
+}
+/* An arrow needing more than one line. Distinct from edge--short, which means there is
+   not enough of the item; this one has plenty and nowhere to put it. */
+.edge--over .react-flow__edge-path { stroke: var(--accent); stroke-dasharray: 6 3; }
+.edge--over .react-flow__edge-text { fill: var(--accent); font-weight: 600; }

@@ -1,12 +1,10 @@
 import { DISPLAY_EPS } from "./solver";
-import type { SiteConnection } from "./types";
+import type { Site, SiteConnection, SiteResult } from "./types";
 
-/** One end of a belt: who, how much of the item they move, and where they sit. */
+/** One end of a belt: who, and how much of the item they move. */
 export interface RoutePort {
   nodeId: string;
   rate: number;
-  x: number;
-  y: number;
 }
 
 export interface RouteEdge {
@@ -41,7 +39,6 @@ export interface RouteInput {
   /** imports — ends of the chain, so they only ever supply */
   sources: Array<{ key: string; item: string; perMinute: number }>;
   connections: SiteConnection[];
-  positionOf: (id: string) => { x: number; y: number };
   isShort: (item: string) => boolean;
 }
 
@@ -88,32 +85,27 @@ export const isDerivedId = (id: string) =>
  *     feeds which.
  */
 export function routeGraph(input: RouteInput): { edges: RouteEdge[]; hubs: RouteHub[] } {
-  const { connections: drawn, positionOf, isShort } = input;
+  const { connections: drawn, isShort } = input;
 
   const supplyBy = new Map<string, RoutePort[]>();
   const demandBy = new Map<string, RoutePort[]>();
 
   for (const f of input.flows) {
-    const at = positionOf(f.nodeId);
     const wired = drawn.some(
       (c) => c.item === f.item && (c.from === f.nodeId || c.to === f.nodeId),
     );
     if (wired) {
-      if (f.out > DISPLAY_EPS) push(supplyBy, f.item, { nodeId: f.nodeId, rate: f.out, ...at });
-      if (f.in > DISPLAY_EPS) push(demandBy, f.item, { nodeId: f.nodeId, rate: f.in, ...at });
+      if (f.out > DISPLAY_EPS) push(supplyBy, f.item, { nodeId: f.nodeId, rate: f.out });
+      if (f.in > DISPLAY_EPS) push(demandBy, f.item, { nodeId: f.nodeId, rate: f.in });
       continue;
     }
     const net = f.out - f.in;
-    if (net > DISPLAY_EPS) push(supplyBy, f.item, { nodeId: f.nodeId, rate: net, ...at });
-    else if (net < -DISPLAY_EPS) push(demandBy, f.item, { nodeId: f.nodeId, rate: -net, ...at });
+    if (net > DISPLAY_EPS) push(supplyBy, f.item, { nodeId: f.nodeId, rate: net });
+    else if (net < -DISPLAY_EPS) push(demandBy, f.item, { nodeId: f.nodeId, rate: -net });
   }
 
-  for (const s of input.sinks) {
-    push(demandBy, s.item, { nodeId: s.key, rate: s.perMinute, ...positionOf(s.key) });
-  }
-  for (const s of input.sources) {
-    push(supplyBy, s.item, { nodeId: s.key, rate: s.perMinute, ...positionOf(s.key) });
-  }
+  for (const s of input.sinks) push(demandBy, s.item, { nodeId: s.key, rate: s.perMinute });
+  for (const s of input.sources) push(supplyBy, s.item, { nodeId: s.key, rate: s.perMinute });
 
   const edges: RouteEdge[] = [];
   const hubs: RouteHub[] = [];
@@ -212,3 +204,56 @@ function push<K, V>(m: Map<K, V[]>, k: K, v: V) {
   if (list) list.push(v);
   else m.set(k, [v]);
 }
+
+/**
+ * Route a whole site: everything `routeGraph` needs, gathered from the site and its
+ * forward pass.
+ *
+ * Lives here rather than in the canvas because the balance panel needs the same answer —
+ * a belt that cannot deliver is worth saying in words, not only in red. Nothing here
+ * depends on where anything sits, which is what makes computing it outside the canvas
+ * possible at all.
+ */
+export function routeSite(
+  site: Site,
+  result: SiteResult,
+  exports: ReadonlyArray<{ toId: string; item: string; perMinute: number }>,
+): { edges: RouteEdge[]; hubs: RouteHub[] } {
+  const flows = new Map<string, { item: string; nodeId: string; out: number; in: number }>();
+  const bump = (item: string, nodeId: string, side: "out" | "in", by: number) => {
+    const key = `${item}|${nodeId}`;
+    const rec = flows.get(key) ?? { item, nodeId, out: 0, in: 0 };
+    rec[side] += by;
+    flows.set(key, rec);
+  };
+  for (const r of result.nodes) {
+    for (const p of r.outputs) bump(p.item, r.nodeId, "out", p.perMinute);
+    for (const p of r.inputs) bump(p.item, r.nodeId, "in", p.perMinute);
+  }
+
+  return routeGraph({
+    flows: [...flows.values()],
+    sinks: exports.map((e) => ({
+      key: exportId(e.toId, e.item), item: e.item, perMinute: e.perMinute,
+    })),
+    sources: site.imports.map((f) => ({
+      key: importId(f.id), item: f.item, perMinute: f.perMinute,
+    })),
+    connections: site.connections ?? [],
+    isShort: (item) => {
+      const bal = result.balances.find((b) => b.item === item);
+      return !!bal && bal.net < -DISPLAY_EPS;
+    },
+  });
+}
+
+/**
+ * Hand-drawn belts that cannot deliver what the far end asked for.
+ *
+ * `under` is only ever set on a hand-drawn belt, because the pooled paths cannot come up
+ * short by construction: what an arm carries *is* whatever the pool had. So this is
+ * exactly the case a site-level balance structurally cannot see — the site has plenty of
+ * the item, just not on the line you drew. Worst first.
+ */
+export const underfedBelts = (edges: readonly RouteEdge[]) =>
+  edges.filter((e) => e.under > DISPLAY_EPS).sort((a, b) => b.under - a.under);

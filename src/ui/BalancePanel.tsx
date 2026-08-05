@@ -1,15 +1,16 @@
 import { useMemo, useState } from "react";
 import type { Db } from "../core/data";
 import type { ExportClaim } from "../core/overview";
-import { exportId, importId } from "../core/routing";
+import { exportId, importId, isHubId, type RouteEdge } from "../core/routing";
 import { DISPLAY_EPS, fmt, nodesMaking, nodesTaking } from "../core/solver";
-import type { Site, SiteResult } from "../core/types";
+import { isExtractor, type Site, type SiteResult } from "../core/types";
+import { BELTS, PIPES, type OverCapacity } from "../core/throughput";
 import { usePlan } from "../store/planStore";
 import { Section } from "./Section";
 import { SolveSheet } from "./SolveSheet";
 
 export function BalancePanel({
-  db, site, result, exports, otherSites,
+  db, site, result, exports, otherSites, over, underfed,
 }: {
   db: Db;
   site: Site;
@@ -18,6 +19,10 @@ export function BalancePanel({
   exports: ExportClaim[];
   /** every other site, offered as an import source */
   otherSites: Array<{ id: string; name: string }>;
+  /** arrows carrying more than one belt or pipe can, worst first */
+  over: OverCapacity[];
+  /** hand-drawn belts that cannot deliver what the far end asked for */
+  underfed: RouteEdge[];
 }) {
   const { solve, tidy, addFlow, updateFlow, removeFlow, setSupply } = usePlan();
   const trimClocks = usePlan((s) => s.trimClocks);
@@ -132,6 +137,8 @@ export function BalancePanel({
       )}
       {status && <p className="hint">{status}</p>}
 
+      <Logistics db={db} site={site} over={over} underfed={underfed} onGo={focusNode} />
+
       <FlowEditor
         db={db} title="Imports" kind="imports" flows={site.imports.filter((f) => !isRaw(f.item))}
         hint="Manufactured parts belted or trained in, so they aren't counted as short."
@@ -161,7 +168,13 @@ export function BalancePanel({
       <RawSupply db={db} raws={result.raws} onSet={setSupply} />
 
       <BalanceTable
-        db={db} title="Shortages" rows={shortages} tone="bad" empty="Nothing short."
+        db={db} title="Shortages" rows={shortages} tone="bad"
+        empty={
+          underfed.length
+            ? `Nothing short across the site — but ${underfed.length} drawn ` +
+              `belt${underfed.length > 1 ? "s cannot" : " cannot"} deliver. See Logistics.`
+            : "Nothing short."
+        }
         onGo={(i) => walkTo(i, feltAt(i))} placesFor={feltAt} goWhat="is needed"
       />
       <BalanceTable
@@ -173,6 +186,86 @@ export function BalancePanel({
         }}
       />
     </aside>
+  );
+}
+
+/**
+ * Arrows nothing could physically deliver.
+ *
+ * The solver counts buildings, not belts, so a perfectly balanced plan can still call
+ * for 1800 Iron Ore down one line. Everything here is buildable — it just needs more
+ * than one line, which is the kind of thing you would rather know before laying it.
+ */
+function Logistics({
+  db, site, over, onGo,
+}: {
+  db: Db;
+  site: Site;
+  over: OverCapacity[];
+  onGo: (nodeId: string) => void;
+}) {
+  const capacity = usePlan((s) => s.capacity);
+  const setCapacity = usePlan((s) => s.setCapacity);
+
+  /** What sits at one end of an arrow: a building by its recipe, or the pool it feeds. */
+  const endName = (id: string) => {
+    if (isHubId(id)) return `${db.itemName(id.slice(4))} pool`;
+    if (id.startsWith("import:")) return "import";
+    if (id.startsWith("export:")) return "export";
+    const n = site.nodes.find((x) => x.id === id);
+    if (!n) return "—";
+    return isExtractor(n) ? db.itemName(n.resource) : db.recipeByClass[n.recipe]?.name ?? "?";
+  };
+
+  return (
+    <Section name="Logistics" count={over.length}>
+      <p className="hint">
+        What one line carries. Anything above it needs splitting across more.
+      </p>
+      <div className="tiers">
+        <label>
+          Belt
+          <select
+            value={capacity.belt}
+            onChange={(e) => setCapacity({ ...capacity, belt: Number(e.target.value) })}
+          >
+            {BELTS.map((t) => (
+              <option key={t.name} value={t.rate}>{t.name} · {t.rate}/min</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Pipe
+          <select
+            value={capacity.pipe}
+            onChange={(e) => setCapacity({ ...capacity, pipe: Number(e.target.value) })}
+          >
+            {PIPES.map((t) => (
+              <option key={t.name} value={t.rate}>{t.name} · {t.rate} m³/min</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {over.length ? (
+        <ul className="feeds">
+          {over.map((o) => (
+            <li key={o.edge.id}>
+              <button className="bal__go" onClick={() => onGo(o.edge.to)}>
+                {db.itemName(o.edge.item)}
+                <span className="muted"> {endName(o.edge.from)} → {endName(o.edge.to)}</span>
+              </button>
+              <strong>
+                {fmt(o.edge.rate)}/min
+                <span className="bal__count">×{o.lines}</span>
+              </strong>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted pad">Every line fits.</p>
+      )}
+    </Section>
   );
 }
 

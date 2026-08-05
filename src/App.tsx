@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadDb, type Db } from "./core/data";
 import { exportsOf } from "./core/overview";
+import { routeSite, underfedBelts } from "./core/routing";
 import { evaluateSite } from "./core/solver";
+import { overCapacity } from "./core/throughput";
 import { selectCanRedo, selectCanUndo, usePlan } from "./store/planStore";
 import { BalancePanel } from "./ui/BalancePanel";
 import { Canvas } from "./ui/Canvas";
@@ -31,6 +33,7 @@ function Planner({ db }: { db: Db }) {
 
   const theme = usePlan((s) => s.theme);
   const toggleTheme = usePlan((s) => s.toggleTheme);
+  const capacity = usePlan((s) => s.capacity);
   const [overview, setOverview] = useState(false);
 
   const site = plan.sites.find((s) => s.id === activeSiteId) ?? plan.sites[0];
@@ -41,6 +44,18 @@ function Planner({ db }: { db: Db }) {
     [plan.sites, site.id],
   );
   const result = useMemo(() => evaluateSite(db, site, owed), [db, site, owed]);
+  // Routed once here rather than inside the canvas, because the balance panel needs the
+  // same answer to report on belts in words.
+  const routed = useMemo(() => routeSite(site, result, owed), [site, result, owed]);
+  const over = useMemo(
+    () => overCapacity(db, routed.edges, capacity),
+    [db, routed.edges, capacity],
+  );
+  const overLines = useMemo(
+    () => new Map(over.map((o) => [o.edge.id, o.lines])),
+    [over],
+  );
+  const underfed = useMemo(() => underfedBelts(routed.edges), [routed.edges]);
 
   // The palette hangs off a data-theme attribute on <html>, so native widgets and
   // scrollbars pick up color-scheme along with everything else.
@@ -92,7 +107,8 @@ function Planner({ db }: { db: Db }) {
         <section className="canvas">
           {site.nodes.length ? (
             <Canvas
-              db={db} site={site} result={result} exports={owed} otherSites={otherSites}
+              db={db} site={site} result={result} routed={routed} overLines={overLines}
+              exports={owed} otherSites={otherSites}
               onOpenSite={(id) => { setOverview(false); setActiveSite(id); }}
             />
           ) : (
@@ -106,7 +122,7 @@ function Planner({ db }: { db: Db }) {
         </section>
         <BalancePanel
           db={db} site={site} result={result} exports={owed}
-          otherSites={otherSites}
+          otherSites={otherSites} over={over} underfed={underfed}
         />
       </main>
       )}

@@ -17,7 +17,6 @@ const conn = (from: string, to: string, item: string): SiteConnection =>
 function route(over: Partial<RouteInput>) {
   const input: RouteInput = {
     flows: [], sinks: [], sources: [], connections: [],
-    positionOf: () => ({ x: 0, y: 0 }),
     isShort: () => false,
     ...over,
   };

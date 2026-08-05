@@ -7,6 +7,7 @@ import {
 import { layoutSite } from "../core/layout";
 import { exportsOf } from "../core/overview";
 import { solveSite } from "../core/solver";
+import { DEFAULT_CAPACITY, type Capacity } from "../core/throughput";
 import { applyMerge } from "../core/transfer";
 import type {
   ExtractorNode, ManufacturerNode, Plan, PlanFlow, PlanNode, Purity, Site,
@@ -35,6 +36,13 @@ interface PlanState {
   /** underclock solved nodes to kill surplus; off by default */
   trimClocks: boolean;
   setTrimClocks: (v: boolean) => void;
+  /**
+   * What one belt and one pipe carry, for flagging arrows nothing could physically
+   * deliver. A statement about what you have unlocked, so it rides with the other
+   * preferences rather than in the plan.
+   */
+  capacity: Capacity;
+  setCapacity: (c: Capacity) => void;
   /** group headings folded shut in the tab bar */
   collapsedGroups: string[];
   toggleGroup: (name: string) => void;
@@ -195,6 +203,8 @@ export const usePlan = create<PlanState>()(
         toggleTheme: () => set((st) => ({ theme: st.theme === "dark" ? "light" : "dark" })),
         trimClocks: false,
         setTrimClocks: (v) => set({ trimClocks: v }),
+        capacity: DEFAULT_CAPACITY,
+        setCapacity: (capacity) => set({ capacity }),
         collapsedGroups: [],
         toggleGroup: (name) =>
           set((st) => ({
@@ -437,7 +447,7 @@ export const usePlan = create<PlanState>()(
       // theme rides along here rather than in the plan, so it never lands in an export.
       partialize: (st) => ({
         plan: st.plan, activeSiteId: st.activeSiteId,
-        theme: st.theme, trimClocks: st.trimClocks,
+        theme: st.theme, trimClocks: st.trimClocks, capacity: st.capacity,
         collapsedGroups: st.collapsedGroups,
         collapsedSections: st.collapsedSections,
       }),
