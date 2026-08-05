@@ -69,6 +69,12 @@ while you watch: Silica drops out, Water appears, because a different recipe nee
 different inputs. Nothing is written until you press Solve, choices stick to the site, and
 the whole thing is one Ctrl+Z.
 
+**Says when a belt you drew cannot deliver.** Wire one water extractor to a refinery that
+wants more than it makes and the site can still be perfectly balanced — there is enough
+water, just not on that line. A site-level balance structurally cannot see that, which is
+how the canvas came to show a red belt while the panel said nothing was short. Both now
+appear under **Logistics**, and Shortages says so rather than claiming all is well.
+
 **Knows a belt has a limit.** The solver counts buildings, not belts, so a perfectly
 balanced plan can still call for 1800 Iron Ore down one line. Set which belt and pipe you
 have unlocked and anything over that is marked on the canvas as *×2 lines* and listed
@@ -200,9 +206,10 @@ Current dump: **291 recipes** (111 alternate), 168 items, 17 buildings.
   the solver work out which pins are best. The data model is ready; HiGHS-WASM over the
   same recipe matrix would do it. It is also what would make raw supply a real
   constraint rather than a note.
-- **Route-aware solving.** The solver works on site-level totals, so it can call a site
-  balanced while a belt you drew by hand is short. The belt turns red, but the plan does
-  not.
+- **Route-aware solving.** The solver still works on site-level totals, so it sizes
+  buildings without knowing which belt feeds which. A hand-drawn belt that cannot deliver
+  is now *reported* under Logistics rather than only turning red, but the solve itself
+  will not size a chain around the topology you drew.
 - **Joint solving across links.** Links are checked, not solved together: if A draws from
   B while B draws from A, each number is sensible on its own but the pair never resolves.
 - **Live comparison against a running game**, which would need the

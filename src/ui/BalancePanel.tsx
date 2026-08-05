@@ -190,18 +190,23 @@ export function BalancePanel({
 }
 
 /**
- * Arrows nothing could physically deliver.
+ * Arrows that do not work, for the two reasons a balanced site can still have one.
  *
- * The solver counts buildings, not belts, so a perfectly balanced plan can still call
- * for 1800 Iron Ore down one line. Everything here is buildable — it just needs more
- * than one line, which is the kind of thing you would rather know before laying it.
+ * *Needs splitting* — the solver counts buildings, not belts, so a balanced plan can
+ * call for 1800 Iron Ore down one line. Buildable, just not down one belt.
+ *
+ * *Cannot deliver* — a belt you drew by hand whose source has less than the far end
+ * wants. The site as a whole may have plenty; a site-level balance structurally cannot
+ * see that it is not on the line you drew, which is how the canvas came to show a red
+ * belt while the panel said nothing was short.
  */
 function Logistics({
-  db, site, over, onGo,
+  db, site, over, underfed, onGo,
 }: {
   db: Db;
   site: Site;
   over: OverCapacity[];
+  underfed: RouteEdge[];
   onGo: (nodeId: string) => void;
 }) {
   const capacity = usePlan((s) => s.capacity);
@@ -218,9 +223,10 @@ function Logistics({
   };
 
   return (
-    <Section name="Logistics" count={over.length}>
+    <Section name="Logistics" count={over.length + underfed.length}>
       <p className="hint">
-        What one line carries. Anything above it needs splitting across more.
+        What one line carries. Anything over that needs splitting; a hand-drawn belt whose
+        source cannot keep up is listed here too.
       </p>
       <div className="tiers">
         <label>
@@ -247,10 +253,19 @@ function Logistics({
         </label>
       </div>
 
-      {over.length ? (
+      {(over.length > 0 || underfed.length > 0) ? (
         <ul className="feeds">
+          {underfed.map((e) => (
+            <li key={`u${e.id}`}>
+              <button className="bal__go" onClick={() => onGo(e.to)}>
+                {db.itemName(e.item)}
+                <span className="muted"> {endName(e.from)} → {endName(e.to)}</span>
+              </button>
+              <strong className="neg">short {fmt(e.under)}</strong>
+            </li>
+          ))}
           {over.map((o) => (
-            <li key={o.edge.id}>
+            <li key={`o${o.edge.id}`}>
               <button className="bal__go" onClick={() => onGo(o.edge.to)}>
                 {db.itemName(o.edge.item)}
                 <span className="muted"> {endName(o.edge.from)} → {endName(o.edge.to)}</span>
@@ -263,7 +278,7 @@ function Logistics({
           ))}
         </ul>
       ) : (
-        <p className="muted pad">Every line fits.</p>
+        <p className="muted pad">Every line fits and delivers.</p>
       )}
     </Section>
   );

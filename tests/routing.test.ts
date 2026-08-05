@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { routeGraph, type RouteInput } from "../src/core/routing";
+import { routeGraph, underfedBelts, type RouteInput } from "../src/core/routing";
 import type { SiteConnection } from "../src/core/types";
 
 /**
@@ -227,5 +227,52 @@ describe("flags carried to the renderer", () => {
     });
     expect(r.edges.find((e) => e.kind === "manual")).toBeDefined();
     expect(r.edges.filter((e) => e.kind !== "manual").every((e) => !e.manual)).toBe(true);
+  });
+});
+
+describe("belts that cannot deliver", () => {
+  it("finds a hand-drawn belt whose source cannot keep up", () => {
+    // The case a site-level balance cannot see: 240 Water on site, plenty for the 200
+    // the refinery wants, but the belt you drew comes off one extractor making 120.
+    const r = route({
+      flows: [makes("w1", WATER, 120), makes("w2", WATER, 120), takes("acid", WATER, 200)],
+      connections: [conn("w1", "acid", WATER)],
+    });
+    const short = underfedBelts(r.edges);
+    expect(short).toHaveLength(1);
+    expect(short[0].under).toBe(80);
+    expect(short[0].from).toBe("w1");
+  });
+
+  it("says nothing about a belt that delivers", () => {
+    const r = route({
+      flows: [makes("w1", WATER, 200), takes("acid", WATER, 200)],
+      connections: [conn("w1", "acid", WATER)],
+    });
+    expect(underfedBelts(r.edges)).toEqual([]);
+  });
+
+  it("never blames a manifold arm", () => {
+    // An arm carries whatever the pool had, so it cannot come up short by construction.
+    // Only a belt someone drew can promise more than its source has.
+    const r = route({
+      flows: [
+        makes("a", WATER, 60), makes("b", WATER, 60),
+        takes("c", WATER, 500), takes("d", WATER, 500),
+      ],
+    });
+    expect(r.hubs).toHaveLength(1);
+    expect(underfedBelts(r.edges)).toEqual([]);
+  });
+
+  it("puts the worst shortfall first", () => {
+    const r = route({
+      flows: [
+        makes("s1", WATER, 10), takes("t1", WATER, 100),
+        makes("s2", ACID, 10), takes("t2", ACID, 200),
+      ],
+      connections: [conn("s1", "t1", WATER), conn("s2", "t2", ACID)],
+    });
+    expect(underfedBelts(r.edges).map((e) => e.under)).toEqual([190, 90]);
   });
 });

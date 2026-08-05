@@ -142,6 +142,21 @@ Anything that is setup for a solve belongs in `SolveSheet`, not the panel: targe
 and `trimClocks` all live there now. The rule that got us here is that a control mattering only
 during a modal act should not hold panel space permanently.
 
+### Belts (`core/routing.ts`, `core/throughput.ts`)
+
+`routeSite` composes what `routeGraph` needs and is called once in `App`, not in `Canvas`, so
+the balance panel can report on belts too. This is only possible because **routing depends on no
+position** — `RouteInput` used to carry a `positionOf` whose results were written into
+`RoutePort` and never read.
+
+Two ways an arrow fails, and neither is visible in a site's balance:
+`underfedBelts` — a hand-drawn belt whose source has less than the far end wants (only ever set
+on hand-drawn belts, since a manifold arm carries whatever the pool had). `overCapacity` — more
+than one belt or pipe can physically move, checked per manifold arm rather than on the pool.
+Belt and pipe tiers are hardcoded in `throughput.ts`: `extract_docs.py` keeps only manufacturers
+and extractors, so they are not in `data.json`, and adding them cannot be verified without a game
+install.
+
 ### State (`store/planStore.ts`)
 
 Zustand with `persist` under key `satisfactory-planner`. `partialize` deliberately keeps `theme`
