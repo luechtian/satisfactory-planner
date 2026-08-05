@@ -5,6 +5,7 @@ import { exportId, importId, targetId } from "../core/routing";
 import { DISPLAY_EPS, fmt, nodesMaking, nodesTaking } from "../core/solver";
 import type { Site, SiteResult } from "../core/types";
 import { usePlan } from "../store/planStore";
+import { SolveSheet } from "./SolveSheet";
 
 export function BalancePanel({
   db, site, result, exports, otherSites,
@@ -22,8 +23,11 @@ export function BalancePanel({
   const setTrimClocks = usePlan((s) => s.setTrimClocks);
   const focusNode = usePlan((s) => s.focusNode);
   const [status, setStatus] = useState<string | null>(null);
+  const [solving, setSolving] = useState(false);
   /** how far through each item's consumers the last click got */
   const [stepped, setStepped] = useState<Record<string, number>>({});
+
+  const pinCount = Object.keys(site.recipeChoice ?? {}).length;
 
   // Raws have their own section with editable supply, so listing them here too would
   // just be noise — every ore would sit in shortages permanently.
@@ -74,16 +78,13 @@ export function BalancePanel({
         // An export is demand too — a site that exists only to supply another is
         // still solvable.
         disabled={!site.targets.length && !exports.length}
-        onClick={() => {
-          const r = solve(db);
-          setStatus(
-            r.diverged
-              ? "Chain did not settle — check for a recipe loop that never closes."
-              : `Solved${r.added ? `, added ${r.added} node${r.added > 1 ? "s" : ""}` : ""}.`,
-          );
-        }}
+        // Opens the chain for review rather than rewriting the site on the spot: the
+        // recipes it will use are only knowable once the chain is worked out, and this
+        // is the one moment choosing between them changes anything.
+        onClick={() => setSolving(true)}
       >
         Solve for targets
+        {pinCount > 0 && <span className="bal__count">{pinCount} pinned</span>}
       </button>
       <label className="check" title="Off: whole buildings at 100%, surplus accepted.">
         <input
@@ -95,6 +96,21 @@ export function BalancePanel({
       <button className="btn" disabled={!site.nodes.length} onClick={() => tidy(db)}>
         Tidy layout
       </button>
+      {solving && (
+        <SolveSheet
+          db={db} site={site} exports={exports} trimClocks={trimClocks}
+          onClose={() => setSolving(false)}
+          onSolve={(choices) => {
+            const r = solve(db, choices);
+            setSolving(false);
+            setStatus(
+              r.diverged
+                ? "Chain did not settle — check for a recipe loop that never closes."
+                : `Solved${r.added ? `, added ${r.added} node${r.added > 1 ? "s" : ""}` : ""}.`,
+            );
+          }}
+        />
+      )}
       {!site.targets.length && !exports.length && (
         <p className="hint">Add a target below to enable solving.</p>
       )}

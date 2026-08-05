@@ -100,6 +100,20 @@ Extractors become synthetic one-product recipes (`extract:<nodeId>`) so a miner 
 Constructor — but only where a resource has exactly one extractor node, since splitting a target
 across differing purities is arbitrary.
 
+`chosen` — one recipe per item — is built in precedence order: a recipe already on the canvas,
+then extractors, then `opts.recipeChoice` (the user's pins from `Site.recipeChoice`), which wins.
+Pinning an item whose old recipe is on the canvas leaves that node at count 0 and adds a new one;
+that is deliberate, since deleting it would be destructive and 0-count nodes are already normal
+after a solve. `alternativesFor` in `core/data.ts` is what the picker offers — narrower than
+`producersOf`, because a recipe that yields an item only as a byproduct must never be offered as
+a way to *make* it.
+
+`SolveResult.chain` is the list of steps the solve will run, which is what makes the Solve dialog
+possible: **the set of recipes worth choosing between is only knowable after solving**, since which
+items are involved depends on the recipes picked. `SolveSheet` therefore re-runs `solveSite` as a
+dry run on every change — it is pure and cheap — and commits through `solve(db, choices)`, which
+writes the pins and the nodes in one `mutate` so the whole thing is a single undo step.
+
 `EPS` (1e-6) is arithmetic tolerance; `DISPLAY_EPS` (1e-3) is what counts as short or spare. Use
 `DISPLAY_EPS` for anything the user sees, or 4-decimal clocks leave phantom shortages.
 

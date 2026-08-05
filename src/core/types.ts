@@ -134,6 +134,14 @@ export interface Site {
   /** where this site sits on the All-sites map, once dragged */
   mapPosition?: { x: number; y: number };
   /**
+   * Which recipe to make an item by, keyed by item class. Absent — the usual case —
+   * leaves it to the solver: whatever is already on the canvas, else the default.
+   *
+   * Per site rather than per plan, because two sites can legitimately smelt
+   * differently: the one next to the oil is the one that should be leaching iron.
+   */
+  recipeChoice?: Record<string, string>;
+  /**
    * Belts drawn by hand.
    *
    * Rates alone cannot say whether two water extractors feed one shared manifold or two

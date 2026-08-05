@@ -15,9 +15,13 @@ vi.hoisted(() => {
   } as Storage;
 });
 
+import { readFileSync } from "node:fs";
+import { indexDb, type Db } from "../src/core/data";
 import { emptyHistory } from "../src/core/history";
-import type { Plan, Site } from "../src/core/types";
+import { isExtractor, type Plan, type Site } from "../src/core/types";
 import { usePlan } from "../src/store/planStore";
+
+const db: Db = indexDb(JSON.parse(readFileSync("public/data.json", "utf8")));
 
 /**
  * The store side of undo: that every action actually routes through the one write path,
@@ -85,6 +89,54 @@ describe("recording", () => {
     const n = st().plan.sites[0].nodes[0];
     expect(n.count).toBe(1);
     expect(n.position).toEqual({ x: 5, y: 5 }); // the drag survived
+  });
+});
+
+describe("solving with chosen recipes", () => {
+  const IRON = "Desc_IronIngot_C";
+  const PURE = "Recipe_Alternate_PureIronIngot_C";
+
+  const withTarget = () =>
+    usePlan.setState({
+      plan: {
+        version: 1,
+        sites: [{ ...site("a"), targets: [{ id: "t", item: IRON, perMinute: 60 }] }, site("b")],
+      },
+      activeSiteId: "a",
+      history: emptyHistory(),
+    });
+
+  it("writes the choices along with the solved nodes", () => {
+    withTarget();
+    st().solve(db, { [IRON]: PURE });
+
+    const solved = st().plan.sites[0];
+    expect(solved.recipeChoice).toEqual({ [IRON]: PURE });
+    expect(solved.nodes.some((n) => !isExtractor(n) && n.recipe === PURE)).toBe(true);
+  });
+
+  it("is one undo step, not one for the choice and one for the solve", () => {
+    withTarget();
+    st().solve(db, { [IRON]: PURE });
+
+    st().undo();
+    expect(st().plan.sites[0].recipeChoice).toBeUndefined();
+    expect(st().plan.sites[0].nodes).toHaveLength(0);
+  });
+
+  it("stores nothing at all rather than an empty map", () => {
+    // So a site solved with everything left on Default serialises exactly like one from
+    // before any of this existed, instead of growing a "recipeChoice": {}.
+    withTarget();
+    st().solve(db, {});
+    expect(st().plan.sites[0].recipeChoice).toBeUndefined();
+  });
+
+  it("keeps existing pins when solved without any choices", () => {
+    withTarget();
+    st().solve(db, { [IRON]: PURE });
+    st().solve(db);
+    expect(st().plan.sites[0].recipeChoice).toEqual({ [IRON]: PURE });
   });
 });
 

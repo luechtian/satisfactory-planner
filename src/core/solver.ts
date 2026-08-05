@@ -144,6 +144,14 @@ export interface SolveResult {
   added: PlanNode[];
   /** items nothing can produce — raw ores, or a missing recipe */
   feeds: Array<{ item: string; perMinute: number }>;
+  /**
+   * Every step the solve actually runs, item and the recipe making it.
+   *
+   * The iterative pass already discovers this on the way to an answer; handing it back
+   * is what lets a caller offer the choice of recipe for each step without re-deriving
+   * the chain, or guessing at it from whatever happens to be on the canvas.
+   */
+  chain: Array<{ item: string; recipe: string }>;
   /** true if the chain failed to settle, e.g. a recipe loop that never closes */
   diverged: boolean;
 }
@@ -405,7 +413,15 @@ export function solveSite(db: Db, site: Site, opts: SolveOptions = {}): SolveRes
     .filter((b) => b.net < -DISPLAY_EPS)
     .map((b) => ({ item: b.item, perMinute: -b.net }));
 
-  return { counts, clocks, added, feeds, diverged };
+  // Extractors are left out: a miner is not a recipe anybody chooses between, and the
+  // purity dropdown on the node is where that decision already lives.
+  const chain = Object.entries(rates)
+    .filter(([rc, rate]) => rate > EPS && !solvedExtractors.has(rc))
+    .map(([rc]) => ({ recipe: rc, item: sdb.recipeByClass[rc]?.products[0]?.item ?? "" }))
+    .filter((c) => c.item)
+    .sort((a, b) => db.itemName(a.item).localeCompare(db.itemName(b.item)));
+
+  return { counts, clocks, added, feeds, diverged, chain };
 }
 
 /**

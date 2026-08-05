@@ -75,7 +75,11 @@ interface PlanState {
   addConnection: (from: string, to: string, item: string) => void;
   removeConnection: (id: string) => void;
 
-  solve: (db: Db) => { added: number; diverged: boolean };
+  /**
+   * Run the solve. `choices` replaces the site's pinned recipes and is written with the
+   * result, so choosing a recipe and solving on it is one thing to undo rather than two.
+   */
+  solve: (db: Db, choices?: Record<string, string>) => { added: number; diverged: boolean };
   tidy: (db: Db) => void;
   replacePlan: (plan: Plan) => void;
   /** fold the accepted sites of an incoming file into this plan, keeping the rest */
@@ -331,10 +335,12 @@ export const usePlan = create<PlanState>()(
         removeConnection: (id) =>
           mutate((s) => ({ ...s, connections: (s.connections ?? []).filter((c) => c.id !== id) })),
 
-        solve: (db) => {
+        solve: (db, choices) => {
           const st = get();
+          const recipeChoice = choices ?? st.site().recipeChoice;
           const result = solveSite(db, st.site(), {
             trimClocks: st.trimClocks,
+            recipeChoice,
             // A link is an obligation: solving the source must cover what it owes.
             exports: exportsOf(st.plan, st.activeSiteId),
           });
@@ -349,7 +355,13 @@ export const usePlan = create<PlanState>()(
             ];
             // Solver-added nodes land in a cramped row, so re-flow the whole site.
             const pos = layoutSite(db, { ...s, nodes });
-            return { ...s, nodes: nodes.map((n) => ({ ...n, position: pos[n.id] ?? n.position })) };
+            return {
+              ...s,
+              nodes: nodes.map((n) => ({ ...n, position: pos[n.id] ?? n.position })),
+              recipeChoice: choices
+                ? (Object.keys(choices).length ? choices : undefined)
+                : s.recipeChoice,
+            };
           });
           return { added: result.added.length, diverged: result.diverged };
         },

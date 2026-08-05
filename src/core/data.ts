@@ -122,6 +122,19 @@ export function resourcesFor(db: Db, building: string): Item[] {
   return raws.filter((i) => forms.has(i.form));
 }
 
+/**
+ * The ways an item can actually be made, the default first.
+ *
+ * Narrower than `producersOf`, which also lists recipes yielding the item only as a
+ * byproduct. Offering one of those as "the way to make this" would tell the solver to
+ * scale a refinery up to farm a byproduct — precisely what the ranking in `indexDb`
+ * exists to prevent. Ordering is inherited from that ranking, so index 0 is the recipe
+ * the solver reaches for on its own.
+ */
+export function alternativesFor(db: Db, item: string): Recipe[] {
+  return (db.producersOf[item] ?? []).filter((r) => r.products[0]?.item === item);
+}
+
 export function searchRecipes(db: Db, query: string, limit = 60): Recipe[] {
   const q = query.trim().toLowerCase();
   if (!q) return db.recipes.slice(0, limit);

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { indexDb, type Db } from "../src/core/data";
+import { alternativesFor, indexDb, type Db } from "../src/core/data";
 import { evaluateSite, nodesMaking, nodesTaking, solveSite } from "../src/core/solver";
 import { exportsOf, summarisePlan } from "../src/core/overview";
 import { isExtractor, type Plan, type PlanNode, type Site } from "../src/core/types";
@@ -139,6 +139,71 @@ describe("backward pass", () => {
     const owed = [{ item: item("Copper Sheet"), perMinute: 100 }];
     const r = solveSite(db, s, { exports: owed });
     expect(counts(db, s, r)["Copper Sheet"]).toBe(10); // 10/min each
+  });
+});
+
+describe("choosing which recipe makes an item", () => {
+  const ingot = item("Aluminum Ingot");
+  const target = () => site({ targets: [{ id: "t", item: ingot, perMinute: 120 }] });
+
+  it("offers only the recipes that make an item as their primary product", () => {
+    // Alumina Solution yields Silica as a byproduct; offering it as a way to *make*
+    // Silica is how you end up scaling a refinery to farm one.
+    const names = alternativesFor(db, item("Silica")).map((r) => r.name);
+    expect(names).toContain("Silica");
+    expect(names).toContain("Alternate: Cheap Silica");
+    expect(names).not.toContain("Alumina Solution");
+  });
+
+  it("puts the recipe the solver would pick on its own first", () => {
+    expect(alternativesFor(db, ingot)[0].name).toBe("Aluminum Ingot");
+  });
+
+  it("builds the pinned recipe instead of the default", () => {
+    const s = target();
+    const pinned = recipe("Alternate: Pure Aluminum Ingot");
+    const r = solveSite(db, s, { recipeChoice: { [ingot]: pinned } });
+    const built = counts(db, s, r);
+    expect(built).toHaveProperty("Alternate: Pure Aluminum Ingot");
+    expect(built).not.toHaveProperty("Aluminum Ingot");
+  });
+
+  it("pulls the pinned recipe's own inputs into the chain", () => {
+    // Pure Aluminum Ingot takes Aluminum Scrap and Water; the default takes Silica too.
+    const s = target();
+    const pinned = recipe("Alternate: Pure Aluminum Ingot");
+    const r = solveSite(db, s, { recipeChoice: { [ingot]: pinned } });
+    const solved = site({
+      ...s,
+      nodes: [...s.nodes.map((n) => ({ ...n, count: r.counts[n.id] ?? n.count })), ...r.added],
+    });
+    const made = evaluateSite(db, solved).balances.find((b) => b.item === ingot)!;
+    expect(made.produced).toBeGreaterThanOrEqual(120);
+    // Nothing left over for the user to supply: every input the pinned recipe needs
+    // got buildings of its own.
+    expect(r.feeds).toEqual([]);
+    expect(r.diverged).toBe(false);
+  });
+
+  it("leaves a node building the old recipe at zero rather than deleting it", () => {
+    const s = site({
+      nodes: [building("Aluminum Ingot", 4)],
+      targets: [{ id: "t", item: ingot, perMinute: 120 }],
+    });
+    const r = solveSite(db, s, { recipeChoice: { [ingot]: recipe("Alternate: Pure Aluminum Ingot") } });
+    expect(r.counts[s.nodes[0].id]).toBe(0);
+    expect(r.added.some((n) => !isExtractor(n) && n.recipe === recipe("Alternate: Pure Aluminum Ingot")))
+      .toBe(true);
+  });
+
+  it("is inert for an item the targets do not need", () => {
+    const s = target();
+    const plain = solveSite(db, s);
+    const withPin = solveSite(db, target(), {
+      recipeChoice: { [item("Steel Ingot")]: recipe("Alternate: Solid Steel Ingot") },
+    });
+    expect(Object.keys(counts(db, target(), withPin)).sort())
+      .toEqual(Object.keys(counts(db, s, plain)).sort());
   });
 });
 

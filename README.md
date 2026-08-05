@@ -46,6 +46,15 @@ You can wire straight to a manifold too, which puts that building on the pool an
 both its arms rather than one netted figure. Manifolds, imports, exports and targets can
 all be dragged where you want them; **Tidy layout** puts them back.
 
+**Shows its working before it rewrites anything.** **Solve for targets** lays out the
+chain it is about to build — every step, the recipe making it, its rate, its building and
+its inputs — and lets you change any of them first. 76 items can be made more than one
+way, and which alternate you have unlocked is half of what makes a base yours. Swap
+Aluminum Ingot for *Alternate: Pure Aluminum Ingot* and the rest of the list follows
+while you watch: Silica drops out, Water appears, because a different recipe needs
+different inputs. Nothing is written until you press Solve, choices stick to the site, and
+the whole thing is one Ctrl+Z.
+
 **Takes it back.** Ctrl+Z steps through anything that changed the plan — a solve that
 rewrote a site, a deleted tab, an import that turned out to be the wrong file — and
 Ctrl+Shift+Z puts it back. A drag is one step rather than two hundred, and typing a rate
@@ -162,9 +171,11 @@ Current dump: **291 recipes** (111 alternate), 168 items, 17 buildings.
 
 ## Not built yet
 
-- **LP optimiser** — "maximise X given these ore nodes", choosing among alternates. The
-  data model is ready; HiGHS-WASM over the same recipe matrix would do it. It is also
-  what would make raw supply a real constraint rather than a note.
+- **LP optimiser** — "maximise X given these ore nodes", *choosing* among alternates
+  rather than being told. You can pin a recipe by hand today; what is missing is having
+  the solver work out which pins are best. The data model is ready; HiGHS-WASM over the
+  same recipe matrix would do it. It is also what would make raw supply a real
+  constraint rather than a note.
 - **Route-aware solving.** The solver works on site-level totals, so it can call a site
   balanced while a belt you drew by hand is short. The belt turns red, but the plan does
   not.
