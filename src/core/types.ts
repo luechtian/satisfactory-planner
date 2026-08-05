@@ -35,7 +35,8 @@ export interface Recipe {
   name: string;
   alternate: boolean;
   durationSec: number;
-  machine: string;
+  /** class of the building that runs it, e.g. Build_ConstructorMk1_C */
+  building: string;
   ingredients: RecipePort[];
   products: RecipePort[];
   variablePowerConstant: number;
@@ -69,10 +70,20 @@ interface NodeBase {
   note?: string;
 }
 
-/** One row of the old spreadsheet: a recipe run on N machines at a given clock. */
-export interface MachineNode extends NodeBase {
-  /** absent on plans saved before extractors existed, so it defaults to a machine */
-  kind?: "machine";
+/**
+ * One row of the old spreadsheet: a recipe run on N buildings at a given clock.
+ *
+ * Named for the game's own grouping — `FGBuildableManufacturer` covers the Constructor,
+ * Assembler, Refinery and the rest — rather than "building", which would be true of an
+ * extractor too and so could not tell the two apart. The interface says *buildings*,
+ * because one of the eleven is itself called the Manufacturer.
+ */
+export interface ManufacturerNode extends NodeBase {
+  /**
+   * Absent on every plan this app has written, since only extractors need marking. Read
+   * defensively rather than relied on: `isExtractor` is the only test that matters.
+   */
+  kind?: "manufacturer";
   recipe: string;
 }
 
@@ -85,7 +96,7 @@ export interface ExtractorNode extends NodeBase {
   purity: Purity;
 }
 
-export type PlanNode = MachineNode | ExtractorNode;
+export type PlanNode = ManufacturerNode | ExtractorNode;
 
 export const isExtractor = (n: PlanNode): n is ExtractorNode => n.kind === "extractor";
 
@@ -159,7 +170,7 @@ export interface ItemBalance {
 
 export interface NodeResult {
   nodeId: string;
-  /** effective machine-multiplier, i.e. count * clock/100 */
+  /** effective building-multiplier, i.e. count * clock/100 */
   effective: number;
   inputs: RecipePort[];
   outputs: RecipePort[];

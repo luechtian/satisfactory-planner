@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import type { Db } from "../core/data";
 import type { ExportClaim } from "../core/overview";
-import { DISPLAY_EPS, fmt } from "../core/solver";
+import { exportId, importId, targetId } from "../core/routing";
+import { DISPLAY_EPS, fmt, nodesMaking, nodesTaking } from "../core/solver";
 import type { Site, SiteResult } from "../core/types";
 import { usePlan } from "../store/planStore";
 
@@ -19,13 +20,47 @@ export function BalancePanel({
   const { solve, tidy, addFlow, updateFlow, removeFlow, setSupply } = usePlan();
   const trimClocks = usePlan((s) => s.trimClocks);
   const setTrimClocks = usePlan((s) => s.setTrimClocks);
+  const focusNode = usePlan((s) => s.focusNode);
   const [status, setStatus] = useState<string | null>(null);
+  /** how far through each item's consumers the last click got */
+  const [stepped, setStepped] = useState<Record<string, number>>({});
 
   // Raws have their own section with editable supply, so listing them here too would
   // just be noise — every ore would sit in shortages permanently.
   const isRaw = (item: string) => !!db.items[item]?.isRawResource;
   const shortages = result.balances.filter((b) => b.net < -DISPLAY_EPS && !isRaw(b.item));
   const surpluses = result.balances.filter((b) => b.net > DISPLAY_EPS && !isRaw(b.item));
+
+  /**
+   * Everywhere a shortage of `item` is felt: the buildings drawing on it, then the
+   * targets and exports waiting on it. A target with nothing to feed it has no consumer
+   * at all, and the sink node is the only place that shortage exists.
+   */
+  const feltAt = (item: string) => [
+    ...new Set([
+      ...nodesTaking(result, item),
+      ...site.targets.filter((f) => f.item === item).map(() => targetId(item)),
+      ...exports.filter((e) => e.item === item).map((e) => exportId(e.toId, item)),
+    ]),
+  ];
+
+  /** The mirror: what is making a surplus, and any import piling it up. */
+  const madeAt = (item: string) => [
+    ...new Set([
+      ...nodesMaking(result, item),
+      ...site.imports.filter((f) => f.item === item).map((f) => importId(f.id)),
+    ]),
+  ];
+
+  // Repeat clicks walk the list rather than sticking on the biggest one, which is the
+  // only way to reach the other two buildings when three of them are all short. Items
+  // are only ever in one of the two tables, so a single cursor per item is enough.
+  const walkTo = (item: string, places: string[]) => {
+    if (!places.length) return;
+    const next = ((stepped[item] ?? -1) + 1) % places.length;
+    setStepped((s) => ({ ...s, [item]: next }));
+    focusNode(places[next]);
+  };
 
   return (
     <aside className="panel panel--right">
@@ -50,7 +85,7 @@ export function BalancePanel({
       >
         Solve for targets
       </button>
-      <label className="check" title="Off: whole machines at 100%, surplus accepted.">
+      <label className="check" title="Off: whole buildings at 100%, surplus accepted.">
         <input
           type="checkbox" checked={trimClocks}
           onChange={(e) => setTrimClocks(e.target.checked)}
@@ -99,15 +134,21 @@ export function BalancePanel({
 
       <RawSupply db={db} raws={result.raws} onSet={setSupply} />
 
-      <BalanceTable db={db} title="Shortages" rows={shortages} tone="bad" empty="Nothing short." />
-      <BalanceTable db={db} title="Surplus" rows={surpluses} tone="good" empty="Nothing spare." />
+      <BalanceTable
+        db={db} title="Shortages" rows={shortages} tone="bad" empty="Nothing short."
+        onGo={(i) => walkTo(i, feltAt(i))} placesFor={feltAt} goWhat="is needed"
+      />
+      <BalanceTable
+        db={db} title="Surplus" rows={surpluses} tone="good" empty="Nothing spare."
+        onGo={(i) => walkTo(i, madeAt(i))} placesFor={madeAt} goWhat="comes from"
+      />
     </aside>
   );
 }
 
 /**
  * Ores, water and gas the site burns through. Rows appear on their own from what the
- * machines consume; typing a supply rate says how much extraction is actually there.
+ * buildings consume; typing a supply rate says how much extraction is actually there.
  *
  * Supply is informational — it settles the balance but does not cap production. Making
  * the solver respect a supply ceiling is the job of the LP phase.
@@ -249,13 +290,18 @@ function FlowEditor({
 }
 
 function BalanceTable({
-  db, title, rows, tone, empty,
+  db, title, rows, tone, empty, onGo, placesFor, goWhat,
 }: {
   db: Db;
   title: string;
   rows: SiteResult["balances"];
   tone: "good" | "bad";
   empty: string;
+  /** when given, the item name becomes a way onto the canvas */
+  onGo?: (item: string) => void;
+  placesFor?: (item: string) => string[];
+  /** fills "Show where this …", e.g. "is needed" */
+  goWhat?: string;
 }) {
   return (
     <section className="section">
@@ -263,14 +309,34 @@ function BalanceTable({
       {rows.length ? (
         <table className="bal">
           <tbody>
-            {rows.map((b) => (
-              <tr key={b.item}>
-                <td>{db.itemName(b.item)}</td>
-                <td className="num muted">{fmt(b.produced)}</td>
-                <td className="num muted">−{fmt(b.consumed + b.target)}</td>
-                <td className={`num ${tone === "bad" ? "neg" : "pos"}`}>{fmt(b.net)}</td>
-              </tr>
-            ))}
+            {rows.map((b) => {
+              const places = placesFor?.(b.item).length ?? 0;
+              return (
+                <tr key={b.item}>
+                  <td>
+                    {onGo && places > 0 ? (
+                      <button
+                        className="bal__go"
+                        onClick={() => onGo(b.item)}
+                        title={
+                          places > 1
+                            ? `Show where this ${goWhat} — ${places} places, click again for the next`
+                            : `Show where this ${goWhat}`
+                        }
+                      >
+                        {db.itemName(b.item)}
+                        {places > 1 && <span className="bal__count">{places}</span>}
+                      </button>
+                    ) : (
+                      db.itemName(b.item)
+                    )}
+                  </td>
+                  <td className="num muted">{fmt(b.produced)}</td>
+                  <td className="num muted">−{fmt(b.consumed + b.target)}</td>
+                  <td className={`num ${tone === "bad" ? "neg" : "pos"}`}>{fmt(b.net)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       ) : (

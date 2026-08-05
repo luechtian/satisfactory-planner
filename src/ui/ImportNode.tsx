@@ -10,7 +10,7 @@ export interface ImportNodeData extends Record<string, unknown> {
   fromName?: string;
   /** how much of it nothing on the canvas takes */
   unused: number;
-  /** no machine here consumes this at all */
+  /** no building here consumes this at all */
   orphan: boolean;
   onOpen?: () => void;
 }
@@ -20,7 +20,7 @@ export interface ImportNodeData extends Record<string, unknown> {
  *
  * The mirror of OutputNode, and derived the same way: the record lives in
  * `site.imports`, this is only its picture. Without it an imported item has no source
- * on the canvas, so machines living entirely on imports drew no edges at all and their
+ * on the canvas, so buildings living entirely on imports drew no edges at all and their
  * ports read as unfed while the balance said they were fine.
  */
 export function ImportNodeView({ data, selected }: NodeProps & { data: ImportNodeData }) {
@@ -32,7 +32,7 @@ export function ImportNodeView({ data, selected }: NodeProps & { data: ImportNod
       <header className="node__head">
         <div>
           <div className="node__title">{db.itemName(item)}</div>
-          <div className="node__machine">
+          <div className="node__building">
             {fromName ? (
               <button className="node__link" onClick={onOpen} title={`Open ${fromName}`}>
                 ← {fromName}

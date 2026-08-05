@@ -60,7 +60,7 @@ export interface SiteSummary {
   id: string;
   name: string;
   group?: string;
-  machines: number;
+  manufacturers: number;
   extractors: number;
   powerMW: number;
   /**
@@ -144,7 +144,7 @@ export function summarisePlan(db: Db, plan: Plan): PlanSummary {
       id: site.id,
       name: site.name,
       group: site.group,
-      machines: site.nodes.filter((n) => n.kind !== "extractor").length,
+      manufacturers: site.nodes.filter((n) => n.kind !== "extractor").length,
       extractors: site.nodes.filter((n) => n.kind === "extractor").length,
       powerMW: result.totalPowerMW,
       short: shortages.map((b) => ({ item: b.item, perMinute: -b.net })),

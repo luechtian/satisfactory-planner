@@ -19,7 +19,7 @@ export function ExtractorNodeView({ data, selected }: NodeProps & { data: Extrac
   const { db, node, result, loose, onChange, onRemove } = data;
   const building = db.buildings[node.building];
   const options = resourcesFor(db, node.building);
-  const perMachine = extractorRate(db, node);
+  const perBuilding = extractorRate(db, node);
   const output = result?.outputs[0]?.perMinute ?? 0;
 
   return (
@@ -29,15 +29,15 @@ export function ExtractorNodeView({ data, selected }: NodeProps & { data: Extrac
       <header className="node__head">
         <div>
           <div className="node__title">{db.itemName(node.resource)}</div>
-          <div className="node__machine">{building?.name}</div>
+          <div className="node__building">{building?.name}</div>
         </div>
         <button className="node__x" onClick={onRemove} title="Remove">×</button>
       </header>
 
       <div className="node__controls nodrag">
         <label>
-          Machines
-          {/* Whole buildings only — a part-machine is expressed as a lower clock. */}
+          Buildings
+          {/* Whole buildings only — a part-building is expressed as a lower clock. */}
           <input
             type="number" min={0} step={1} value={node.count}
             onChange={(e) => onChange({ count: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
@@ -82,7 +82,7 @@ export function ExtractorNodeView({ data, selected }: NodeProps & { data: Extrac
       </div>
 
       <div className="node__ports">
-        <div className="node__rate">{fmt(perMachine)}/min each</div>
+        <div className="node__rate">{fmt(perBuilding)}/min each</div>
         <ul className="ports ports--out">
           <li className={loose ? "port port--loose" : "port"}>
             <span className="port__rate">{fmt(output)}</span>

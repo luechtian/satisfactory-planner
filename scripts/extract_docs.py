@@ -33,7 +33,7 @@ ITEM_CLASSES = (
     "FGAmmoTypeProjectile", "FGAmmoTypeInstantHit", "FGAmmoTypeSpreadshot",
     "FGPowerShardDescriptor", "FGItemDescriptorPowerBoosterFuel",
 )
-MACHINE_CLASSES = ("FGBuildableManufacturer", "FGBuildableManufacturerVariablePower")
+MANUFACTURER_CLASSES = ("FGBuildableManufacturer", "FGBuildableManufacturerVariablePower")
 EXTRACTOR_CLASSES = (
     "FGBuildableResourceExtractor", "FGBuildableWaterPump", "FGBuildableFrackingExtractor",
 )
@@ -99,7 +99,7 @@ def build_items(by_native):
 
 def build_buildings(by_native, items):
     buildings = {}
-    for key in MACHINE_CLASSES + EXTRACTOR_CLASSES:
+    for key in MANUFACTURER_CLASSES + EXTRACTOR_CLASSES:
         for c in by_native.get(key, []):
             is_extractor = key in EXTRACTOR_CLASSES
             b = {
@@ -134,8 +134,8 @@ def build_recipes(by_native, items, buildings):
 
     recipes = []
     for c in by_native.get("FGRecipe", []):
-        machines = [m for m in parse_class_list(c.get("mProducedIn")) if m in buildings]
-        if not machines:
+        made_in = [m for m in parse_class_list(c.get("mProducedIn")) if m in buildings]
+        if not made_in:
             continue  # build-gun recipe, handcraft-only, or customizer paint
 
         duration = num(c.get("mManufactoringDuration"))
@@ -165,7 +165,7 @@ def build_recipes(by_native, items, buildings):
             "alternate": c["ClassName"].startswith("Recipe_Alternate_")
                          or name.startswith("Alternate:"),
             "durationSec": duration,
-            "machine": machines[0],
+            "building": made_in[0],
             "ingredients": ins,
             "products": outs,
             "variablePowerConstant": num(c.get("mVariablePowerConsumptionConstant")),

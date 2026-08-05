@@ -45,26 +45,41 @@ export interface RouteInput {
   isShort: (item: string) => boolean;
 }
 
+/**
+ * Ids for the nodes the canvas derives rather than stores.
+ *
+ * Written here beside the hub ids because more than one place has to agree on them: the
+ * canvas builds these nodes, and the balance panel has to be able to name one to send
+ * you to it. They were string literals in the canvas until the second caller appeared.
+ */
+export const hubId = (item: string) => `hub:${item}`;
+export const targetId = (item: string) => `target:${item}`;
+export const exportId = (toId: string, item: string) => `export:${toId}:${item}`;
+export const importId = (flowId: string) => `import:${flowId}`;
+
 export const isHubId = (id: string | null | undefined) => !!id?.startsWith("hub:");
-const hubId = (item: string) => `hub:${item}`;
+/** True for any node the canvas synthesised, none of which match a stored PlanNode. */
+export const isDerivedId = (id: string) =>
+  id.startsWith("target:") || id.startsWith("export:") ||
+  id.startsWith("import:") || id.startsWith("hub:");
 
 /**
  * Decide what connects to what, and at what rate.
  *
  * Kept out of the canvas component because every routing bug so far has been pure
- * logic — a machine excluded from one side, a loop of derived nodes dropped — and none
+ * logic — a building excluded from one side, a loop of derived nodes dropped — and none
  * of it was reachable by a test while it lived inside a `useMemo`.
  *
  * The rules, in order:
  *
- *  1. A machine is *netted* per item, so one that recycles its own input sits on a
+ *  1. A building is *netted* per item, so one that recycles its own input sits on a
  *     single side and cannot be belted to itself. Wiring either of its ports by hand
  *     opts it out: it then appears on both sides at gross rates.
  *  2. Hand-drawn belts are served first and take their endpoints out of the pool
  *     entirely, so a belt that cannot keep up is reported short rather than quietly
  *     topped up from elsewhere.
  *  3. Whatever is left over meets in the middle: one-to-one gets a plain arrow, and
- *     anything busier gets a manifold, because rates alone cannot say which machine
+ *     anything busier gets a manifold, because rates alone cannot say which building
  *     feeds which.
  */
 export function routeGraph(input: RouteInput): { edges: RouteEdge[]; hubs: RouteHub[] } {
@@ -146,7 +161,7 @@ export function routeGraph(input: RouteInput): { edges: RouteEdge[]; hubs: Route
       (d) => !claimedIn.has(d.nodeId) && (wanted.get(d.nodeId) ?? 0) > DISPLAY_EPS,
     );
     if (!leftIn.length || !leftOut.length) continue;
-    // A wired machine appears on both sides at gross rates; never belt it to itself.
+    // A wired building appears on both sides at gross rates; never belt it to itself.
     if (leftIn.length === 1 && leftOut.length === 1 && leftIn[0].nodeId === leftOut[0].nodeId) {
       continue;
     }

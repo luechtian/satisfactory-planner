@@ -1,15 +1,15 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { Db } from "../core/data";
 import { fmt } from "../core/solver";
-import type { MachineNode, NodeResult } from "../core/types";
+import type { ManufacturerNode, NodeResult } from "../core/types";
 
 export interface RecipeNodeData extends Record<string, unknown> {
   db: Db;
-  node: MachineNode;
+  node: ManufacturerNode;
   result?: NodeResult;
   /** items this node emits that nothing downstream takes, and inputs nothing feeds */
   loose: { inputs: Set<string>; outputs: Set<string> };
-  onChange: (patch: Partial<MachineNode>) => void;
+  onChange: (patch: Partial<ManufacturerNode>) => void;
   onRemove: () => void;
 }
 
@@ -18,7 +18,7 @@ export function RecipeNode({ data, selected }: NodeProps & { data: RecipeNodeDat
   const recipe = db.recipeByClass[node.recipe];
   if (!recipe) return <div className="node node--error">unknown recipe {node.recipe}</div>;
 
-  const machine = db.buildings[recipe.machine];
+  const building = db.buildings[recipe.building];
   const rate = (item: string, ports: typeof recipe.ingredients) =>
     ports.find((p) => p.item === item)?.perMinute ?? 0;
 
@@ -27,8 +27,8 @@ export function RecipeNode({ data, selected }: NodeProps & { data: RecipeNodeDat
       <header className="node__head">
         <div>
           <div className="node__title">{recipe.name}</div>
-          <div className="node__machine">
-            {machine?.name}
+          <div className="node__building">
+            {building?.name}
             {recipe.alternate && <span className="tag tag--alt">ALT</span>}
           </div>
         </div>
@@ -37,8 +37,8 @@ export function RecipeNode({ data, selected }: NodeProps & { data: RecipeNodeDat
 
       <div className="node__controls nodrag">
         <label>
-          Machines
-          {/* Whole buildings only — a part-machine is expressed as a lower clock. */}
+          Buildings
+          {/* Whole buildings only — a part-building is expressed as a lower clock. */}
           <input
             type="number" min={0} step={1} value={node.count}
             onChange={(e) => onChange({ count: Math.max(0, Math.round(Number(e.target.value) || 0)) })}

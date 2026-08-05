@@ -9,7 +9,7 @@ import { exportsOf } from "../core/overview";
 import { solveSite } from "../core/solver";
 import { applyMerge } from "../core/transfer";
 import type {
-  ExtractorNode, MachineNode, Plan, PlanFlow, PlanNode, Purity, Site,
+  ExtractorNode, ManufacturerNode, Plan, PlanFlow, PlanNode, Purity, Site,
 } from "../core/types";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -43,6 +43,14 @@ interface PlanState {
   setActiveSite: (id: string) => void;
   setSelectedNode: (id: string | null) => void;
 
+  /**
+   * A request to bring one node into view, from somewhere that cannot reach the canvas
+   * itself. The nonce is what makes asking for the same node twice register as two
+   * requests rather than one — clicking a shortage repeatedly walks its consumers.
+   */
+  focus: { nodeId: string; nonce: number } | null;
+  focusNode: (nodeId: string) => void;
+
   addSite: (name: string) => void;
   renameSite: (id: string, name: string, group?: string) => void;
   /** move a site to a new index in the tab order */
@@ -52,7 +60,7 @@ interface PlanState {
 
   addNode: (recipe: string, position?: { x: number; y: number }) => void;
   addExtractor: (building: string, resource: string, purity: Purity) => void;
-  updateNode: (id: string, patch: Partial<MachineNode> & Partial<ExtractorNode>) => void;
+  updateNode: (id: string, patch: Partial<ManufacturerNode> & Partial<ExtractorNode>) => void;
   removeNode: (id: string) => void;
 
   addFlow: (kind: "targets" | "imports", item: string, perMinute: number) => void;
@@ -176,8 +184,17 @@ export const usePlan = create<PlanState>()(
           const st = get();
           return st.plan.sites.find((s) => s.id === st.activeSiteId) ?? st.plan.sites[0];
         },
-        setActiveSite: (id) => set({ activeSiteId: id, selectedNodeId: null }),
+        setActiveSite: (id) => set({ activeSiteId: id, selectedNodeId: null, focus: null }),
         setSelectedNode: (id) => set({ selectedNodeId: id }),
+
+        // View state, not a plan edit: written straight rather than through `write`, so
+        // it neither records an undo step nor survives a reload.
+        focus: null,
+        focusNode: (nodeId) =>
+          set((st) => ({
+            focus: { nodeId, nonce: (st.focus?.nonce ?? 0) + 1 },
+            selectedNodeId: nodeId,
+          })),
 
         addSite: (name) => {
           const fresh = emptySite(name);
@@ -285,7 +302,7 @@ export const usePlan = create<PlanState>()(
         removeFlow: (kind, id) =>
           mutate((s) => ({ ...s, [kind]: s[kind].filter((f) => f.id !== id) })),
 
-        // Raw supply rows appear on their own from what the machines consume, so the
+        // Raw supply rows appear on their own from what the buildings consume, so the
         // input has to upsert: create the entry on first edit, drop it back to implicit
         // when cleared. Stored in `imports` so availability stays one concept.
         setSupply: (item, perMinute) =>

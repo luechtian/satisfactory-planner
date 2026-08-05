@@ -1,12 +1,13 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Background, Controls, MiniMap, ReactFlow,
   type Connection, type Edge, type IsValidConnection, type Node, type NodeChange,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { Db } from "../core/data";
 import type { ExportClaim } from "../core/overview";
-import { isHubId, routeGraph } from "../core/routing";
+import { exportId, importId, isDerivedId, isHubId, routeGraph, targetId } from "../core/routing";
 import { DISPLAY_EPS, fmt } from "../core/solver";
 import { isExtractor } from "../core/types";
 import type { Site, SiteResult } from "../core/types";
@@ -56,6 +57,22 @@ export function Canvas({
     updateNode, removeNode, setSelectedNode, setSinkPosition,
     addConnection, removeConnection,
   } = usePlan();
+  const focus = usePlan((s) => s.focus);
+  const [flow, setFlow] = useState<ReactFlowInstance | null>(null);
+  /** the node a focus request landed on, held long enough to be noticed */
+  const [flash, setFlash] = useState<string | null>(null);
+
+  useEffect(() => {
+    // getNode reads React Flow's live store, so a request naming something that is not
+    // on this canvas — a target since deleted, say — is simply ignored.
+    if (!focus || !flow?.getNode(focus.nodeId)) return;
+    flow.fitView({ nodes: [{ id: focus.nodeId }], duration: 400, maxZoom: 1.1, padding: 0.9 });
+    setFlash(focus.nodeId);
+    const done = setTimeout(() => setFlash(null), 1600);
+    return () => clearTimeout(done);
+    // Deliberately not watching `nodes`: this fires when a focus is asked for, not every
+    // time the plan changes while an old request is still sitting in the store.
+  }, [focus, flow]);
 
   const { nodes, edges } = useMemo(() => {
     const resultById = new Map(result.nodes.map((r) => [r.nodeId, r]));
@@ -75,10 +92,10 @@ export function Canvas({
       for (const g of r.ingredients) push(consumers, g.item, n.id);
     }
 
-    // Belted-in material needs a source on the canvas, or machines fed entirely by
+    // Belted-in material needs a source on the canvas, or buildings fed entirely by
     // imports draw no edges and their ports read as unfed.
     const sources = site.imports.map((f) => ({
-      key: `import:${f.id}`,
+      key: importId(f.id),
       item: f.item,
       perMinute: f.perMinute,
       fromId: f.from,
@@ -131,11 +148,11 @@ export function Canvas({
     // Derived every render — see OutputNode for why these are never stored.
     const sinks = [
       ...site.targets.map((f) => ({
-        key: `target:${f.item}`, item: f.item, perMinute: f.perMinute,
+        key: targetId(f.item), item: f.item, perMinute: f.perMinute,
         toName: undefined as string | undefined, toId: undefined as string | undefined,
       })),
       ...exports.map((e) => ({
-        key: `export:${e.toId}:${e.item}`, item: e.item, perMinute: e.perMinute,
+        key: exportId(e.toId, e.item), item: e.item, perMinute: e.perMinute,
         toName: e.toName, toId: e.toId,
       })),
     ];
@@ -239,7 +256,7 @@ export function Canvas({
         label,
         className: [
           e.short ? "edge--short" : "",
-          isSynthetic(e.to) && !isHubId(e.to) ? "edge--sink" : "",
+          isDerivedId(e.to) && !isHubId(e.to) ? "edge--sink" : "",
           e.manual ? "edge--manual" : "",
           e.under > DISPLAY_EPS ? "edge--under" : "",
         ].filter(Boolean).join(" ") || undefined,
@@ -291,7 +308,7 @@ export function Canvas({
       // Output nodes are synthesised, not stored — their ids match no PlanNode, so a
       // change for one must never reach updateNode. Dragging is the exception: the
       // position is layout, and gets remembered separately.
-      if ("id" in c && isSynthetic(c.id)) {
+      if ("id" in c && isDerivedId(c.id)) {
         if (c.type === "position" && c.position) setSinkPosition(c.id, c.position);
         continue;
       }
@@ -318,11 +335,18 @@ export function Canvas({
     if (item && c.source && c.target) addConnection(c.source, c.target, item);
   };
 
+  // Applied outside the memo so a flash does not rebuild every node and re-run routing.
+  const shown = useMemo(
+    () => (flash ? nodes.map((n) => (n.id === flash ? { ...n, className: "node--flash" } : n)) : nodes),
+    [nodes, flash],
+  );
+
   return (
     <ReactFlow
-      nodes={nodes}
+      nodes={shown}
       edges={edges}
       nodeTypes={nodeTypes}
+      onInit={setFlow}
       onNodesChange={onNodesChange}
       onConnect={onConnect}
       isValidConnection={isValidConnection}
@@ -353,10 +377,6 @@ export function Canvas({
     </ReactFlow>
   );
 }
-
-const isSynthetic = (id: string) =>
-  id.startsWith("target:") || id.startsWith("export:") ||
-  id.startsWith("import:") || id.startsWith("hub:");
 
 function push<K, V>(m: Map<K, V[]>, k: K, v: V) {
   const list = m.get(k);

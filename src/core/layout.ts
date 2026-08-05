@@ -10,7 +10,7 @@ const label = (db: Db, n: PlanNode) =>
   isExtractor(n) ? db.itemName(n.resource) : (db.recipeByClass[n.recipe]?.name ?? "");
 
 /**
- * Layered left-to-right layout: raw-fed machines on the left, final product on the
+ * Layered left-to-right layout: raw-fed buildings on the left, final product on the
  * right, one column per production depth.
  *
  * Depth is the longest path from an input-fed node. Satisfactory chains contain real
@@ -67,7 +67,7 @@ export function layoutSite(db: Db, site: Site): Record<string, { x: number; y: n
     else columns.set(d, [n]);
   }
 
-  // Imported material is drawn in a column of its own to the left, so machines start
+  // Imported material is drawn in a column of its own to the left, so buildings start
   // one column in rather than at the origin where those nodes would end up off-view.
   const originX = 60 + (site.imports.length ? COL_W : 0);
 

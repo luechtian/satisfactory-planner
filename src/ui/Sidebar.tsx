@@ -24,7 +24,7 @@ export function Sidebar({ db }: { db: Db }) {
 
       <input
         className="search"
-        placeholder="Search recipe, product or machine…"
+        placeholder="Search recipe, product or building…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         autoFocus
@@ -42,7 +42,7 @@ export function Sidebar({ db }: { db: Db }) {
                 <span className="reclist__name">{r.name}</span>
                 {r.alternate && <span className="tag tag--alt">ALT</span>}
               </div>
-              <div className="reclist__machine">{db.buildings[r.machine]?.name}</div>
+              <div className="reclist__building">{db.buildings[r.building]?.name}</div>
               <div className="reclist__io">
                 <span>{r.ingredients.map((p) => `${db.itemName(p.item)} ${fmt(p.perMinute)}`).join(", ") || "—"}</span>
                 <span className="arrow">→</span>

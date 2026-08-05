@@ -1,7 +1,7 @@
 # Satisfactory Planner
 
 Plan production for [Satisfactory](https://www.satisfactorygame.com/) as a node graph.
-Say what a factory should ship, and it works out the machine counts, power draw, raw
+Say what a factory should ship, and it works out the building counts, power draw, raw
 extraction and every item balance — across as many sites as you want to build.
 
 **→ [Try it](https://luechtian.github.io/satisfactory-planner/)** · no install, no account
@@ -14,10 +14,10 @@ comes from the game's own files rather than a hand-maintained list.
 ## What it does
 
 **Solves backwards from a target.** Ask for 360 Aluminum Ingot/min and one click turns an
-empty canvas into a complete factory: every machine count, the intermediate steps you
+empty canvas into a complete factory: every building count, the intermediate steps you
 forgot, and miners for the ores nothing else covers.
 
-**Counts whole machines.** You cannot build 1.5 Refineries, so it doesn't pretend you
+**Counts whole buildings.** You cannot build 1.5 Refineries, so it doesn't pretend you
 can. Rounding a stage up raises demand on the stage above it, and the counts are
 re-derived from each other until they settle — the same arithmetic you would do by hand.
 Prefer exact rates? Tick *underclock to avoid surplus* and each stage is clocked onto its
@@ -36,13 +36,13 @@ shortfall, and see the lot on an **All sites** page: a map of which site feeds w
 power per group, raw extraction rolled up, and every item that crosses a boundary sorted
 into what nothing covers, what could be routed, and what is simply spare.
 
-**Draws the belts, or lets you.** One machine feeding one other gets a plain arrow; where
+**Draws the belts, or lets you.** One building feeding one other gets a plain arrow; where
 several make an item and several take it, they meet at a manifold. Drag between ports to
 wire something specific — that is how you say two water extractors are separate
-sub-factories rather than a shared pool. A machine that recycles its own input, like the
+sub-factories rather than a shared pool. A building that recycles its own input, like the
 Blender making Encased Uranium Cells, is shown as a net consumer until you wire one of
 those ports; then both run at gross rates so the returned fluid can go where you send it.
-You can wire straight to a manifold too, which puts that machine on the pool and shows
+You can wire straight to a manifold too, which puts that building on the pool and shows
 both its arms rather than one netted figure. Manifolds, imports, exports and targets can
 all be dragged where you want them; **Tidy layout** puts them back.
 
@@ -79,7 +79,7 @@ python scripts/extract_docs.py "D:/Steam/steamapps/common/Satisfactory/Community
 
 ## Where plans are stored
 
-In `localStorage`, scoped to the origin. Sites, machine counts, clocks, node positions,
+In `localStorage`, scoped to the origin. Sites, building counts, clocks, node positions,
 targets, imports and hand-drawn belts all survive a reload and a browser restart, but:
 
 - they are per browser **and** per profile, and never sync anywhere;
@@ -104,17 +104,17 @@ site is imported too.
 
 `src/core/solver.ts`, two passes.
 
-**Forward** — `evaluateSite` takes machine counts and sums production against consumption
+**Forward** — `evaluateSite` takes building counts and sums production against consumption
 per item.
 
 **Backward** — `solveSite` takes targets and finds counts that meet them. An iterative
 pass discovers which recipes the chain needs, the resulting square system is solved
-exactly by Gaussian elimination, and the rates are then turned into whole machines. Three
+exactly by Gaussian elimination, and the rates are then turned into whole buildings. Three
 things a naive expansion gets wrong:
 
 - **Byproducts credit, they never justify.** A recipe is scaled for its primary product
   only, otherwise a byproduct becomes a reason to overbuild its parent.
-- **Whole machines change the answer upstream.** 1.5 Aluminum Scrap refineries become 2,
+- **Whole buildings change the answer upstream.** 1.5 Aluminum Scrap refineries become 2,
   and 2 of them eat 480 Alumina rather than 360 — which is 4 Alumina refineries, not 3.
 - **Loops must close.** The iterative pass alone overshoots, because rates only climb and
   one gets locked in before the byproduct credit arrives.
@@ -127,10 +127,10 @@ npm test
 
 Vitest, no browser, under a second. Five suites:
 
-- `tests/solver.test.ts` — balances, whole-machine derivation, byproduct credit, water
+- `tests/solver.test.ts` — balances, whole-building derivation, byproduct credit, water
   loops, idempotent solving, cross-site links and derived exports.
 - `tests/routing.test.ts` — what the canvas connects to what. Every case in it is a bug
-  that shipped: a machine recycling its own input becoming unreachable, hand-drawn belts
+  that shipped: a building recycling its own input becoming unreachable, hand-drawn belts
   being silently topped up from elsewhere, import and export nodes losing their wires.
 - `tests/transfer.test.ts` — exchanging sites between two plans: what a partial export
   carries, what replaces what on the way back in, and the links that dangle until the
@@ -158,7 +158,7 @@ every routing bug so far has been pure logic rather than rendering.
   `Recipe_PureAluminumIngot_C`, are only marked in the display name.
 - Buildings, paint and handcraft-only entries filtered out.
 
-Current dump: **291 recipes** (111 alternate), 168 items, 17 machines.
+Current dump: **291 recipes** (111 alternate), 168 items, 17 buildings.
 
 ## Not built yet
 

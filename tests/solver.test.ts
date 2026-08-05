@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { indexDb, type Db } from "../src/core/data";
-import { evaluateSite, solveSite } from "../src/core/solver";
+import { evaluateSite, nodesMaking, nodesTaking, solveSite } from "../src/core/solver";
 import { exportsOf, summarisePlan } from "../src/core/overview";
 import { isExtractor, type Plan, type PlanNode, type Site } from "../src/core/types";
 
@@ -19,14 +19,14 @@ const item = (name: string) => {
 };
 
 let seq = 0;
-const machine = (name: string, count: number, clock = 100): PlanNode => ({
+const building = (name: string, count: number, clock = 100): PlanNode => ({
   id: `n${seq++}`, recipe: recipe(name), count, clock, position: { x: 0, y: 0 },
 });
 const site = (over: Partial<Site> = {}): Site => ({
   id: `s${seq++}`, name: "site", nodes: [], targets: [], imports: [], ...over,
 });
 
-/** Machine counts keyed by recipe name, for readable assertions. */
+/** Building counts keyed by recipe name, for readable assertions. */
 function counts(db: Db, s: Site, solved: ReturnType<typeof solveSite>) {
   const out: Record<string, number> = {};
   for (const n of [...s.nodes, ...solved.added]) {
@@ -43,7 +43,7 @@ const net = (s: Site, name: string, exports?: Parameters<typeof evaluateSite>[2]
 describe("forward pass", () => {
   const alu = site({
     nodes: [
-      machine("Alumina Solution", 4), machine("Aluminum Scrap", 2), machine("Aluminum Ingot", 6),
+      building("Alumina Solution", 4), building("Aluminum Scrap", 2), building("Aluminum Ingot", 6),
     ],
   });
 
@@ -55,10 +55,10 @@ describe("forward pass", () => {
     expect(net(alu, "Aluminum Ingot")).toBe(360);
   });
 
-  it("counts extractor power, not just machines", () => {
+  it("counts extractor power, not just buildings", () => {
     const withMiner = site({
       nodes: [
-        machine("Aluminum Ingot", 1),
+        building("Aluminum Ingot", 1),
         { id: "x1", kind: "extractor", building: "Build_MinerMk3_C", resource: item("Bauxite"),
           purity: "normal", count: 2, clock: 100, position: { x: 0, y: 0 } },
       ],
@@ -68,13 +68,13 @@ describe("forward pass", () => {
   });
 
   it("scales a node by clock as well as count", () => {
-    const half = site({ nodes: [machine("Iron Ingot", 2, 50)] });
+    const half = site({ nodes: [building("Iron Ingot", 2, 50)] });
     expect(net(half, "Iron Ingot")).toBe(30); // 2 smelters at 50% = 1 at 100%
   });
 });
 
 describe("backward pass", () => {
-  it("re-derives whole machines up the chain", () => {
+  it("re-derives whole buildings up the chain", () => {
     // Scrap rounds 1.5 -> 2, which pushes Alumina 3 -> 4. Matches the spreadsheet.
     const s = site({ targets: [{ id: "t", item: item("Aluminum Ingot"), perMinute: 360 }] });
     const r = solveSite(db, s);
@@ -108,7 +108,7 @@ describe("backward pass", () => {
     expect(net(solved, "Water")).toBeCloseTo(0, 6);
   });
 
-  it("is idempotent — solving twice does not stack machines", () => {
+  it("is idempotent — solving twice does not stack buildings", () => {
     const s = site({ targets: [{ id: "t", item: item("Aluminum Ingot"), perMinute: 360 }] });
     const first = solveSite(db, s);
     const after = site({
@@ -120,7 +120,7 @@ describe("backward pass", () => {
     expect(counts(db, after, second)).toEqual(counts(db, s, first));
   });
 
-  it("never emits a fractional machine", () => {
+  it("never emits a fractional building", () => {
     const s = site({ targets: [{ id: "t", item: item("Reinforced Iron Plate"), perMinute: 17 }] });
     const r = solveSite(db, s);
     for (const c of Object.values(counts(db, s, r))) expect(c % 1).toBe(0);
@@ -135,7 +135,7 @@ describe("backward pass", () => {
   });
 
   it("solves for an export the same as for a target", () => {
-    const s = site({ nodes: [machine("Copper Sheet", 1)] });
+    const s = site({ nodes: [building("Copper Sheet", 1)] });
     const owed = [{ item: item("Copper Sheet"), perMinute: 100 }];
     const r = solveSite(db, s, { exports: owed });
     expect(counts(db, s, r)["Copper Sheet"]).toBe(10); // 10/min each
@@ -144,9 +144,9 @@ describe("backward pass", () => {
 
 describe("cross-site links", () => {
   const build = (): Plan => {
-    const source = site({ id: "src", name: "Source", nodes: [machine("Copper Sheet", 5)] });
+    const source = site({ id: "src", name: "Source", nodes: [building("Copper Sheet", 5)] });
     const consumer = site({
-      id: "dst", name: "Consumer", nodes: [machine("AI Limiter", 1)],
+      id: "dst", name: "Consumer", nodes: [building("AI Limiter", 1)],
       imports: [{ id: "i1", item: item("Copper Sheet"), perMinute: 25, from: "src" }],
     });
     return { version: 1, sites: [source, consumer] };
@@ -192,13 +192,54 @@ describe("cross-site links", () => {
   });
 });
 
+describe("finding who goes without, and where it comes from", () => {
+  const alu = site({
+    nodes: [
+      building("Alumina Solution", 4), building("Aluminum Scrap", 2), building("Aluminum Ingot", 6),
+    ],
+  });
+  const [alumina, scrap, ingot] = alu.nodes;
+
+  it("lists only the buildings that draw the item in", () => {
+    // Aluminum Scrap hands Water back rather than taking it, so it never goes short of
+    // it however little there is.
+    expect(nodesTaking(evaluateSite(db, alu), item("Water"))).toEqual([alumina.id]);
+  });
+
+  it("lists the buildings an item comes out of, byproducts included", () => {
+    // The same recipe that is not a consumer of Water is where the spare Water is from.
+    expect(nodesMaking(evaluateSite(db, alu), item("Water"))).toEqual([scrap.id]);
+    expect(nodesMaking(evaluateSite(db, alu), item("Aluminum Ingot"))).toEqual([ingot.id]);
+  });
+
+  it("puts the biggest first, since that is the building most responsible", () => {
+    const two = site({ nodes: [building("Aluminum Ingot", 2), building("Aluminum Ingot", 6)] });
+    const [small, big] = two.nodes;
+    const result = evaluateSite(db, two);
+    expect(nodesTaking(result, item("Aluminum Scrap"))).toEqual([big.id, small.id]);
+    expect(nodesMaking(result, item("Aluminum Ingot"))).toEqual([big.id, small.id]);
+  });
+
+  it("is empty for an item on the wrong side of the building", () => {
+    expect(nodesTaking(evaluateSite(db, alu), item("Aluminum Ingot"))).toEqual([]);
+    expect(nodesMaking(evaluateSite(db, alu), item("Bauxite"))).toEqual([]);
+  });
+
+  it("ignores a building turned down to nothing", () => {
+    const off = site({ nodes: [building("Aluminum Ingot", 0)] });
+    const result = evaluateSite(db, off);
+    expect(nodesTaking(result, item("Aluminum Scrap"))).toEqual([]);
+    expect(nodesMaking(result, item("Aluminum Ingot"))).toEqual([]);
+  });
+});
+
 describe("what each site is short of and has spare", () => {
   const alu = () => ({
     version: 1 as const,
     sites: [site({
       name: "Aluminium",
       nodes: [
-        machine("Alumina Solution", 4), machine("Aluminum Scrap", 2), machine("Aluminum Ingot", 6),
+        building("Alumina Solution", 4), building("Aluminum Scrap", 2), building("Aluminum Ingot", 6),
       ],
     })],
   });
@@ -227,7 +268,7 @@ describe("what each site is short of and has spare", () => {
 
 describe("recipes that recycle their own input", () => {
   it("nets Encased Uranium Cell to a single side of the acid balance", () => {
-    const s = site({ nodes: [machine("Encased Uranium Cell", 1)] });
+    const s = site({ nodes: [building("Encased Uranium Cell", 1)] });
     const bal = evaluateSite(db, s).balances.find((b) => b.item === item("Sulfuric Acid"))!;
     expect(bal.produced).toBe(10);
     expect(bal.consumed).toBe(40);

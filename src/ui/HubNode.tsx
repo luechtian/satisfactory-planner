@@ -14,7 +14,7 @@ export interface HubNodeData extends Record<string, unknown> {
 /**
  * A manifold for one item.
  *
- * When several machines make something and several take it, there is no fact of the
+ * When several buildings make something and several take it, there is no fact of the
  * matter about which feeds which — the plan records rates, not belts. Pairing them off
  * invents a topology and produces edges carrying oddly-scaled fractions. In-game you
  * would run the lot into a bus anyway, so that is what gets drawn: every producer puts

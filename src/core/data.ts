@@ -61,7 +61,7 @@ export function indexDb(raw: GameData): Db {
 
 /** Overclocking costs power superlinearly: P = base * (clock/100) ^ exponent. */
 export function powerFor(db: Db, recipe: Recipe, count: number, clock: number): number {
-  const b = db.buildings[recipe.machine];
+  const b = db.buildings[recipe.building];
   if (!b) return 0;
   const base = recipe.variablePowerConstant
     ? recipe.variablePowerConstant + recipe.variablePowerFactor / 2
@@ -128,13 +128,13 @@ export function searchRecipes(db: Db, query: string, limit = 60): Recipe[] {
   const scored: Array<[number, Recipe]> = [];
   for (const r of db.recipes) {
     const name = r.name.toLowerCase();
-    const machine = db.buildings[r.machine]?.name.toLowerCase() ?? "";
+    const building = db.buildings[r.building]?.name.toLowerCase() ?? "";
     const products = r.products.map((p) => db.itemName(p.item).toLowerCase()).join(" ");
     let score = -1;
     if (name.startsWith(q)) score = 0;
     else if (name.includes(q)) score = 1;
     else if (products.includes(q)) score = 2;
-    else if (machine.includes(q)) score = 3;
+    else if (building.includes(q)) score = 3;
     if (score >= 0) scored.push([score + (r.alternate ? 0.5 : 0), r]);
   }
   scored.sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name));

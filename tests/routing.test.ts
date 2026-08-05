@@ -50,7 +50,7 @@ describe("basic shapes", () => {
       ],
     });
     expect(r.hubs).toHaveLength(1);
-    // Four arms, not a four-edge mesh — and every machine gets exactly one.
+    // Four arms, not a four-edge mesh — and every building gets exactly one.
     expect(r.pairs).toEqual([
       "e1->hub:Desc_Water_C", "e2->hub:Desc_Water_C",
       "hub:Desc_Water_C->c1", "hub:Desc_Water_C->c2",
@@ -70,7 +70,7 @@ describe("basic shapes", () => {
   });
 });
 
-describe("machines that recycle their own input", () => {
+describe("buildings that recycle their own input", () => {
   // Encased Uranium Cell: 40 Sulfuric Acid in, 10 back out.
   const blender = { item: ACID, nodeId: "euc", out: 10, in: 40 };
 
@@ -194,7 +194,7 @@ describe("derived import and export nodes", () => {
 
   it("never nets a sink against a source of the same item", () => {
     // An import and an export of one item are separate ends of the chain, not a
-    // machine that recycles.
+    // building that recycles.
     const r = route({
       sources: [{ key: "import:i1", item: WATER, perMinute: 100 }],
       sinks: [{ key: "target:Desc_Water_C", item: WATER, perMinute: 100 }],

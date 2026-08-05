@@ -33,7 +33,7 @@ export function OutputNodeView({ data, selected }: NodeProps & { data: OutputNod
       <header className="node__head">
         <div>
           <div className="node__title">{db.itemName(item)}</div>
-          <div className="node__machine">
+          <div className="node__building">
             {toName ? (
               <button className="node__link" onClick={onOpen} title={`Open ${toName}`}>
                 → {toName}

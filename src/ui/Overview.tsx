@@ -30,8 +30,8 @@ export function Overview({
           <Stat label="Sites" value={String(s.sites.length)} />
           <Stat label="Total power" value={`${fmt(s.totalPowerMW, 1)} MW`} accent />
           <Stat
-            label="Machines"
-            value={String(s.sites.reduce((n, x) => n + x.machines + x.extractors, 0))}
+            label="Buildings"
+            value={String(s.sites.reduce((n, x) => n + x.manufacturers + x.extractors, 0))}
           />
         </div>
       </header>
@@ -179,7 +179,7 @@ export function Overview({
                   <div className="sitecard__name">{x.name}</div>
                   <div className="sitecard__power">{fmt(x.powerMW, 1)} MW</div>
                   <div className="sitecard__meta muted">
-                    {x.machines} machine{x.machines === 1 ? "" : "s"}
+                    {x.manufacturers} building{x.manufacturers === 1 ? "" : "s"}
                     {x.extractors > 0 && ` · ${x.extractors} extractor${x.extractors === 1 ? "" : "s"}`}
                   </div>
                   <div className="sitecard__flags chips">
