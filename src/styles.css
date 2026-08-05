@@ -354,12 +354,25 @@ button, input, select { font: inherit; color: inherit; }
 .panel__head { display: flex; align-items: baseline; justify-content: space-between; }
 .panel__head h2 { margin: 0; font-size: .95rem; font-weight: 600; }
 
-.search, .flows select, .flows input, .flows__add select {
+.search {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: .4rem .55rem;
+  min-width: 0;
+}
+
+/* Targets and imports are set once and then mostly read, so they are sized to be
+   compact rather than to be typed into all day. Split from .search, which the sidebar
+   and the site switcher use and which is typed into constantly. */
+.flows select, .flows input, .flows__add select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: .22rem .4rem;
+  font-size: .84rem;
   min-width: 0;
 }
 .search:focus, select:focus, input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
@@ -384,7 +397,35 @@ button, input, select { font: inherit; color: inherit; }
 .btn--icon { padding: .35rem .5rem; line-height: 1; }
 
 .section { border-top: 1px solid var(--line); padding-top: .6rem; }
-.section h3 { margin: 0 0 .35rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.section__title { margin: 0 0 .45rem; }
+.section__title--folded { margin-bottom: 0; }
+/* The heading is the fold control. Styled as the old heading was, so folding reads as
+   something the panel always did rather than a control bolted on top of it. */
+.section__head {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: .84rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.section__head:hover { color: var(--fg); }
+.section__caret { font-size: .7rem; }
+.section__count {
+  background: var(--bg-3);
+  border-radius: 8px;
+  padding: 0 .32rem;
+  font-size: .72rem;
+  letter-spacing: 0;
+}
 
 /* recipe list */
 .reclist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
@@ -411,10 +452,11 @@ button, input, select { font: inherit; color: inherit; }
 .tag--by { background: var(--line); color: var(--muted); margin-left: .3rem; }
 
 /* flows + balances */
-.flows { list-style: none; margin: 0 0 .4rem; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
-.flows li { display: grid; gap: .3rem; }
-.flow__main { display: grid; grid-template-columns: 1fr 72px auto; gap: .3rem; }
-.flow--linked { padding-bottom: .3rem; border-bottom: 1px solid var(--bg-3); }
+.flows { list-style: none; margin: 0 0 .35rem; padding: 0; display: flex; flex-direction: column; gap: .25rem; }
+.flows li { display: grid; gap: .2rem; }
+.flow__main { display: grid; grid-template-columns: 1fr 64px auto; gap: .25rem; }
+.flow__main .btn--icon { padding: .15rem .35rem; font-size: .82rem; }
+.flow--linked { padding-bottom: .25rem; border-bottom: 1px solid var(--bg-3); }
 .flow__from {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -432,39 +474,50 @@ button, input, select { font: inherit; color: inherit; }
   min-width: 0;
 }
 .over { color: var(--neg); font-weight: 600; font-size: .72rem; }
-.flows__add { display: grid; grid-template-columns: 1fr auto; gap: .3rem; }
+.flows__add { display: grid; grid-template-columns: 1fr auto; gap: .25rem; }
+.flows__add .btn { padding: .22rem .6rem; font-size: .84rem; }
 
-.bal { width: 100%; border-collapse: collapse; font-size: .8rem; }
-.bal td { padding: .18rem .25rem; border-bottom: 1px solid var(--bg-3); }
+.bal { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.bal td { padding: .34rem .3rem; border-bottom: 1px solid var(--bg-3); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .pos { color: var(--pos); font-weight: 600; }
 .neg { color: var(--neg); font-weight: 600; }
 
-.raw { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.raw { width: 100%; border-collapse: collapse; font-size: .84rem; }
 .raw th {
   text-align: left;
   font-weight: 500;
-  font-size: .68rem;
+  font-size: .7rem;
   text-transform: uppercase;
   letter-spacing: .05em;
   color: var(--muted);
-  padding: 0 .25rem .2rem;
+  padding: 0 .3rem .3rem;
 }
 .raw th.num { text-align: right; }
-.raw td { padding: .15rem .25rem; border-bottom: 1px solid var(--bg-3); }
+.raw td { padding: .3rem .3rem; border-bottom: 1px solid var(--bg-3); }
 .raw__in {
   width: 100%;
-  min-width: 58px;
+  /* Five columns and an input share a 360px panel, so the input gives back what the
+     larger row text takes. Still wide enough for a four-figure rate. */
+  min-width: 52px;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 5px;
-  padding: .15rem .3rem;
+  padding: .22rem .3rem;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.feeds { list-style: none; margin: 0; padding: 0; font-size: .82rem; }
-.feeds li { display: flex; justify-content: space-between; padding: .18rem 0; border-bottom: 1px solid var(--bg-3); }
+/* Sized to match .bal and .raw: exports read as one more balance table, and lining the
+   three up stops the eye treating this one as a footnote. */
+.feeds { list-style: none; margin: 0; padding: 0; font-size: .88rem; }
+.feeds li {
+  display: flex;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .34rem .3rem;
+  border-bottom: 1px solid var(--bg-3);
+}
 .feeds strong { color: var(--accent); font-variant-numeric: tabular-nums; }
 
 /* ------------------------------------------------------------------- nodes */

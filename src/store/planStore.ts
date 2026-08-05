@@ -38,6 +38,13 @@ interface PlanState {
   /** group headings folded shut in the tab bar */
   collapsedGroups: string[];
   toggleGroup: (name: string) => void;
+  /**
+   * Balance-panel sections folded shut, by heading. Kept here rather than in the panel
+   * so a fold survives switching sites — refolding on every tab change would be worse
+   * than not being able to fold at all.
+   */
+  collapsedSections: string[];
+  toggleSection: (name: string) => void;
 
   site: () => Site;
   setActiveSite: (id: string) => void;
@@ -182,6 +189,13 @@ export const usePlan = create<PlanState>()(
             collapsedGroups: st.collapsedGroups.includes(name)
               ? st.collapsedGroups.filter((g) => g !== name)
               : [...st.collapsedGroups, name],
+          })),
+        collapsedSections: [],
+        toggleSection: (name) =>
+          set((st) => ({
+            collapsedSections: st.collapsedSections.includes(name)
+              ? st.collapsedSections.filter((g) => g !== name)
+              : [...st.collapsedSections, name],
           })),
 
         site: () => {
@@ -404,6 +418,7 @@ export const usePlan = create<PlanState>()(
         plan: st.plan, activeSiteId: st.activeSiteId,
         theme: st.theme, trimClocks: st.trimClocks,
         collapsedGroups: st.collapsedGroups,
+        collapsedSections: st.collapsedSections,
       }),
     },
   ),

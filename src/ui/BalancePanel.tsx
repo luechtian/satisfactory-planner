@@ -5,6 +5,7 @@ import { exportId, importId, targetId } from "../core/routing";
 import { DISPLAY_EPS, fmt, nodesMaking, nodesTaking } from "../core/solver";
 import type { Site, SiteResult } from "../core/types";
 import { usePlan } from "../store/planStore";
+import { Section } from "./Section";
 import { SolveSheet } from "./SolveSheet";
 
 export function BalancePanel({
@@ -129,8 +130,7 @@ export function BalancePanel({
       />
 
       {!!exports.length && (
-        <section className="section">
-          <h3>Exports</h3>
+        <Section name="Exports" count={exports.length}>
           <p className="hint">
             Claimed by other sites, counted as a target here. Change the amount on the
             site that draws it.
@@ -145,7 +145,7 @@ export function BalancePanel({
               </li>
             ))}
           </ul>
-        </section>
+        </Section>
       )}
 
       <RawSupply db={db} raws={result.raws} onSet={setSupply} />
@@ -178,8 +178,7 @@ function RawSupply({
 }) {
   if (!raws.length) return null;
   return (
-    <section className="section">
-      <h3>Raw supply</h3>
+    <Section name="Raw supply" count={raws.length}>
       <p className="hint">
         <b>Site</b> is what extractor nodes and byproducts already yield. Use <b>Belt</b>{" "}
         for anything arriving from outside.
@@ -217,7 +216,7 @@ function RawSupply({
           })}
         </tbody>
       </table>
-    </section>
+    </Section>
   );
 }
 
@@ -258,8 +257,7 @@ function FlowEditor({
   );
 
   return (
-    <section className="section">
-      <h3>{title}</h3>
+    <Section name={title} count={flows.length}>
       <p className="hint">{hint}</p>
       <ul className="flows">
         {flows.map((f) => (
@@ -301,7 +299,7 @@ function FlowEditor({
           Add
         </button>
       </div>
-    </section>
+    </Section>
   );
 }
 
@@ -320,8 +318,7 @@ function BalanceTable({
   goWhat?: string;
 }) {
   return (
-    <section className="section">
-      <h3>{title}</h3>
+    <Section name={title} count={rows.length}>
       {rows.length ? (
         <table className="bal">
           <tbody>
@@ -358,6 +355,6 @@ function BalanceTable({
       ) : (
         <p className="muted pad">{empty}</p>
       )}
-    </section>
+    </Section>
   );
 }

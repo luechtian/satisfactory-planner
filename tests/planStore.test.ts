@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The store is built with persist(), which takes hold of localStorage as it is imported
-// and warns on every write when there is none. Hoisted so it is in place first; nothing
-// here reads it back.
+/**
+ * Somewhere for persist() to write.
+ *
+ * It defaults to `window.localStorage` — not the bare global — so under Node there is no
+ * storage at all: every write warns, and nothing is stored. Stubbing `localStorage`
+ * alone does nothing, which is worth knowing before wondering why a persistence test
+ * never sees its own data. Hoisted so it is in place before the store is imported.
+ */
 vi.hoisted(() => {
   const mem = new Map<string, string>();
-  globalThis.localStorage = {
+  const store = {
     getItem: (k: string) => mem.get(k) ?? null,
     setItem: (k: string, v: string) => void mem.set(k, v),
     removeItem: (k: string) => void mem.delete(k),
@@ -13,6 +18,8 @@ vi.hoisted(() => {
     key: (i: number) => [...mem.keys()][i] ?? null,
     get length() { return mem.size; },
   } as Storage;
+  (globalThis as { window?: unknown }).window = { localStorage: store };
+  globalThis.localStorage = store;
 });
 
 import { readFileSync } from "node:fs";
@@ -41,6 +48,7 @@ beforeEach(() => {
     activeSiteId: "a",
     selectedNodeId: null,
     history: emptyHistory(),
+    collapsedSections: [],
   });
 });
 
@@ -89,6 +97,33 @@ describe("recording", () => {
     const n = st().plan.sites[0].nodes[0];
     expect(n.count).toBe(1);
     expect(n.position).toEqual({ x: 5, y: 5 }); // the drag survived
+  });
+});
+
+describe("folding panel sections", () => {
+  it("toggles shut and open again", () => {
+    st().toggleSection("Shortages");
+    expect(st().collapsedSections).toEqual(["Shortages"]);
+    st().toggleSection("Shortages");
+    expect(st().collapsedSections).toEqual([]);
+  });
+
+  it("is not a plan edit, so it spends no undo step", () => {
+    const before = st().history.past.length;
+    st().toggleSection("Surplus");
+    expect(st().history.past).toHaveLength(before);
+  });
+
+  it("survives a reload", async () => {
+    // Read back out of the storage the middleware actually wrote to. `partialize`
+    // decides what gets that far, and leaving a field out of it fails silently — the
+    // state just quietly resets on the next load.
+    st().toggleSection("Shortages");
+    // persist writes through a promise, so the write lands a microtask after the set.
+    await Promise.resolve();
+
+    const saved = JSON.parse(globalThis.localStorage.getItem("satisfactory-planner") ?? "{}");
+    expect(saved.state.collapsedSections).toEqual(["Shortages"]);
   });
 });
 
