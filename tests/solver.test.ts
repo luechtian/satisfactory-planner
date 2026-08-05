@@ -192,6 +192,39 @@ describe("cross-site links", () => {
   });
 });
 
+describe("what each site is short of and has spare", () => {
+  const alu = () => ({
+    version: 1 as const,
+    sites: [site({
+      name: "Aluminium",
+      nodes: [
+        machine("Alumina Solution", 4), machine("Aluminum Scrap", 2), machine("Aluminum Ingot", 6),
+      ],
+    })],
+  });
+  const named = (fs: Array<{ item: string; perMinute: number }>) =>
+    fs.map((f) => [db.itemName(f.item), f.perMinute]);
+
+  it("names the items rather than counting them, worst and biggest first", () => {
+    const [s] = summarisePlan(db, alu()).sites;
+    expect(named(s.short)).toEqual([["Silica", 250]]);
+    expect(named(s.spare)).toEqual([["Aluminum Ingot", 360], ["Aluminum Scrap", 180]]);
+  });
+
+  it("leaves raws to the extraction rollup, so Water is not listed twice", () => {
+    // The site is 480 Water short, but every ore would sit in this list permanently.
+    const summary = summarisePlan(db, alu());
+    expect(summary.sites[0].short.some((f) => f.item === item("Water"))).toBe(false);
+    expect(summary.raws.find((r) => r.item === item("Water"))?.net).toBe(-480);
+  });
+
+  it("says nothing either way about an item that balances", () => {
+    const [s] = summarisePlan(db, alu()).sites;
+    const alumina = item("Alumina Solution");
+    expect([...s.short, ...s.spare].some((f) => f.item === alumina)).toBe(false);
+  });
+});
+
 describe("recipes that recycle their own input", () => {
   it("nets Encased Uranium Cell to a single side of the acid balance", () => {
     const s = site({ nodes: [machine("Encased Uranium Cell", 1)] });

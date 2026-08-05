@@ -49,6 +49,13 @@ export interface ItemRollup {
   net: number;
 }
 
+/** An item a site cannot cover, or has going spare. Always a positive rate — which of
+ *  the two it is, is the field it arrives in. */
+export interface ItemFlow {
+  item: string;
+  perMinute: number;
+}
+
 export interface SiteSummary {
   id: string;
   name: string;
@@ -56,8 +63,17 @@ export interface SiteSummary {
   machines: number;
   extractors: number;
   powerMW: number;
-  shortages: number;
-  surpluses: number;
+  /**
+   * What the site cannot cover and what it has spare, rather than how many of each.
+   * The rollup below answers "who is short of Silica"; a site needs the question the
+   * other way round — "what is this one missing" — and a bare count cannot answer it.
+   *
+   * Worst and biggest first, so anything truncated for display is the least
+   * interesting. Raws are left out on purpose; they have their own rollup, and every
+   * ore would otherwise sit here permanently.
+   */
+  short: ItemFlow[];
+  spare: ItemFlow[];
 }
 
 export interface RawRollup {
@@ -131,8 +147,10 @@ export function summarisePlan(db: Db, plan: Plan): PlanSummary {
       machines: site.nodes.filter((n) => n.kind !== "extractor").length,
       extractors: site.nodes.filter((n) => n.kind === "extractor").length,
       powerMW: result.totalPowerMW,
-      shortages: shortages.length,
-      surpluses: surpluses.length,
+      short: shortages.map((b) => ({ item: b.item, perMinute: -b.net })),
+      // Balances arrive sorted by net ascending, which puts the worst shortfall first
+      // already but leaves surplus smallest-first, so that half is reversed.
+      spare: [...surpluses].reverse().map((b) => ({ item: b.item, perMinute: b.net })),
     });
 
     for (const b of result.raws) {

@@ -245,7 +245,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 .sitenode {
-  min-width: 170px;
+  width: 200px;
   background: var(--bg-2);
   border: 1px solid var(--line);
   border-radius: 9px;
@@ -266,8 +266,21 @@ button, input, select { font: inherit; color: inherit; }
 }
 .sitenode__name { font-weight: 600; font-size: .88rem; }
 .sitenode__power { color: var(--accent); font-variant-numeric: tabular-nums; }
-.sitenode__flags { display: flex; gap: .5rem; font-size: .7rem; margin-top: .15rem; }
-.sitenode__unmet { color: var(--muted); font-size: .66rem; margin-top: .1rem; }
+.sitenode__flows { display: flex; flex-wrap: wrap; gap: .2rem; margin-top: .3rem; font-size: .7rem; }
+.sitenode__flows .chip {
+  display: flex;
+  gap: .25rem;
+  max-width: 100%;
+  padding: .05rem .35rem;
+  font-size: .66rem;
+  cursor: inherit;
+}
+/* Clip the name rather than the rate: the rate is the part you cannot infer from the
+   rest of the node, and a clipped name is still recognisable from its first word. */
+.sitenode__item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sitenode__flows .chip:hover { border-color: var(--line); }
+.sitenode__more { color: var(--muted); }
+.sitenode__unmet { color: var(--muted); font-size: .66rem; margin-top: .2rem; }
 .sitenode .react-flow__handle { width: 6px; height: 6px; background: var(--line); border: none; }
 
 .sitegroup { margin-bottom: 1.1rem; }
@@ -300,7 +313,10 @@ button, input, select { font: inherit; color: inherit; }
 .sitecard__name { font-weight: 600; }
 .sitecard__power { color: var(--accent); font-variant-numeric: tabular-nums; font-size: 1.1rem; }
 .sitecard__meta { font-size: .72rem; }
-.sitecard__flags { display: flex; gap: .6rem; font-size: .72rem; margin-top: .2rem; }
+.sitecard__flags { margin-top: .3rem; font-size: .72rem; }
+/* Inherit the card's cursor: these read as labels, and only the card is clickable. */
+.sitecard__flags .chip { cursor: inherit; font-size: .68rem; }
+.sitecard__flags .chip:hover { border-color: var(--line); }
 
 /* ------------------------------------------------------------------ layout */
 

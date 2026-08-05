@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import type { Db } from "../core/data";
-import { groupSites, rank, summarisePlan, type ItemRollup } from "../core/overview";
+import {
+  groupSites, rank, summarisePlan, type ItemRollup, type SiteSummary,
+} from "../core/overview";
 import { DISPLAY_EPS, fmt } from "../core/solver";
 import type { Plan } from "../core/types";
 import { SiteMap } from "./SiteMap";
@@ -180,10 +182,8 @@ export function Overview({
                     {x.machines} machine{x.machines === 1 ? "" : "s"}
                     {x.extractors > 0 && ` · ${x.extractors} extractor${x.extractors === 1 ? "" : "s"}`}
                   </div>
-                  <div className="sitecard__flags">
-                    {x.shortages > 0 && <span className="neg">{x.shortages} short</span>}
-                    {x.surpluses > 0 && <span className="pos">{x.surpluses} spare</span>}
-                    {!x.shortages && !x.surpluses && <span className="muted">balanced</span>}
+                  <div className="sitecard__flags chips">
+                    <SiteFlows db={db} site={x} max={6} />
                   </div>
                 </button>
               ))}
@@ -192,6 +192,38 @@ export function Overview({
         ))}
       </section>
     </div>
+  );
+}
+
+/**
+ * What a site is missing and what it has going spare, as items rather than a tally.
+ *
+ * The rollup tables answer this by item — who is short of Silica — which is the wrong
+ * way round when you are looking at one site and want to know what it needs. Shortages
+ * lead but never take every slot, so a site short of several things still shows that it
+ * has something to give.
+ */
+function SiteFlows({ db, site, max }: { db: Db; site: SiteSummary; max: number }) {
+  if (!site.short.length && !site.spare.length) return <span className="muted">balanced</span>;
+
+  const short = site.short.slice(0, Math.max(1, max - 2));
+  const spare = site.spare.slice(0, max - short.length);
+  const more = site.short.length - short.length + (site.spare.length - spare.length);
+
+  return (
+    <>
+      {short.map((f) => (
+        <span key={`n${f.item}`} className="chip chip--neg">
+          {db.itemName(f.item)} <b>−{fmt(f.perMinute)}</b>
+        </span>
+      ))}
+      {spare.map((f) => (
+        <span key={`p${f.item}`} className="chip chip--pos">
+          {db.itemName(f.item)} <b>+{fmt(f.perMinute)}</b>
+        </span>
+      ))}
+      {more > 0 && <span className="chip muted">+{more} more</span>}
+    </>
   );
 }
 

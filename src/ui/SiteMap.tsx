@@ -9,35 +9,64 @@ import { DISPLAY_EPS, fmt } from "../core/solver";
 import type { Plan } from "../core/types";
 import { usePlan } from "../store/planStore";
 
-const COL_W = 300;
-const ROW_H = 150;
-const NODE_H = 110;
-const NODE_W = 170;
+const COL_W = 330;
+const ROW_H = 180;
+const NODE_H = 152;
+const NODE_W = 200;
 const BAND_GAP = 46;
 const BAND_PAD = 22;
+
+/**
+ * How many item chips a site node carries before the rest become a count.
+ *
+ * Enough to see what a site is actually missing, few enough that the node stays a node.
+ * Shortages get first refusal but never the whole allowance, so a site that is short of
+ * five things still shows that it has something spare.
+ */
+const MAX_CHIPS = 4;
+const MAX_SHORT_CHIPS = 3;
+
+/** One item chip on a site node, formatted up front so the view needs no `db`. */
+interface Chip {
+  key: string;
+  name: string;
+  rate: string;
+  tone: "neg" | "pos";
+}
 
 interface SiteNodeData extends Record<string, unknown> {
   name: string;
   group?: string;
   powerMW: number;
-  short: number;
-  spare: number;
+  chips: Chip[];
+  /** items that did not fit in `chips` */
+  more: number;
+  anyShort: boolean;
   /** demand no other site covers, so it has to come from outside the plan */
   unmet: number;
 }
 
 function SiteNodeView({ data, selected }: NodeProps & { data: SiteNodeData }) {
-  const { name, group, powerMW, short, spare, unmet } = data;
+  const { name, group, powerMW, chips, more, anyShort, unmet } = data;
   return (
-    <div className={`sitenode ${short ? "sitenode--short" : ""} ${selected ? "sitenode--on" : ""}`}>
+    <div
+      className={`sitenode ${anyShort ? "sitenode--short" : ""} ${selected ? "sitenode--on" : ""}`}
+    >
       <Handle type="target" position={Position.Left} />
       {group && <div className="sitenode__group">{group}</div>}
       <div className="sitenode__name">{name}</div>
       <div className="sitenode__power">{fmt(powerMW, 1)} MW</div>
-      <div className="sitenode__flags">
-        {short > 0 && <span className="neg">{short} short</span>}
-        {spare > 0 && <span className="pos">{spare} spare</span>}
-        {!short && !spare && <span className="muted">balanced</span>}
+      <div className="sitenode__flows">
+        {chips.map((c) => (
+          // Titled because a long item name is clipped to keep the rate visible — the
+          // rate is the part you cannot infer from anything else on the node.
+          <span key={c.key} className={`chip chip--${c.tone}`} title={`${c.name} ${c.rate}/min`}>
+            <span className="sitenode__item">{c.name}</span>
+            <b>{c.rate}</b>
+          </span>
+        ))}
+        {more > 0 && <span className="chip sitenode__more">+{more}</span>}
+        {!chips.length && <span className="muted">balanced</span>}
       </div>
       {unmet > 0 && <div className="sitenode__unmet">{unmet} from outside</div>}
       <Handle type="source" position={Position.Right} />
@@ -129,13 +158,26 @@ export function SiteMap({
 
     const nodes: Node[] = summary.sites.map((s) => {
       const stored = plan.sites.find((x) => x.id === s.id)?.mapPosition;
+      // Shortages lead, but leave room for at least one surplus so both sides of a
+      // site's position are visible at a glance.
+      const short = s.short.slice(0, MAX_SHORT_CHIPS);
+      const spare = s.spare.slice(0, MAX_CHIPS - short.length);
+      const chip = (f: { item: string; perMinute: number }, tone: "neg" | "pos"): Chip => ({
+        key: `${tone}:${f.item}`,
+        name: db.itemName(f.item),
+        rate: `${tone === "neg" ? "−" : "+"}${fmt(f.perMinute)}`,
+        tone,
+      });
+
       return {
         id: s.id,
         type: "site",
         position: stored ?? at.get(s.id) ?? { x: 40, y: 40 },
         data: {
           name: s.name, group: s.group, powerMW: s.powerMW,
-          short: s.shortages, spare: s.surpluses,
+          chips: [...short.map((f) => chip(f, "neg")), ...spare.map((f) => chip(f, "pos"))],
+          more: s.short.length - short.length + (s.spare.length - spare.length),
+          anyShort: s.short.length > 0,
           // Shortages nobody else supplies — the plan's true external inputs.
           unmet: summary.items.filter(
             (r) => r.shortAt.some((x) => x.id === s.id) && r.spare <= DISPLAY_EPS,
