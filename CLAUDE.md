@@ -127,6 +127,21 @@ step.
 `EPS` (1e-6) is arithmetic tolerance; `DISPLAY_EPS` (1e-3) is what counts as short or spare. Use
 `DISPLAY_EPS` for anything the user sees, or 4-decimal clocks leave phantom shortages.
 
+### Panels
+
+`Section` (`ui/Section.tsx`) is the foldable block used by both side panels; its heading text
+doubles as the key its folded state is stored under, so two sections in one panel must not share
+a name.
+
+`SitesSection` subscribes to `plan` in a component of its own rather than in `Sidebar`, so the
+recipe list beside it does not reconcile on every edit made anywhere in the plan. It calls
+`summarisePlan` — ~1ms for fifty sites, memoised on `[db, plan]` — which `Overview` also does;
+the two are never mounted together, since the overview replaces the whole layout.
+
+Anything that is setup for a solve belongs in `SolveSheet`, not the panel: targets, recipe pins
+and `trimClocks` all live there now. The rule that got us here is that a control mattering only
+during a modal act should not hold panel space permanently.
+
 ### State (`store/planStore.ts`)
 
 Zustand with `persist` under key `satisfactory-planner`. `partialize` deliberately keeps `theme`

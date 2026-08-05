@@ -3,6 +3,7 @@ import { resourcesFor, searchRecipes, type Db } from "../core/data";
 import { fmt } from "../core/solver";
 import { usePlan } from "../store/planStore";
 import { Section } from "./Section";
+import { SitesSection } from "./SitesSection";
 
 export function Sidebar({ db }: { db: Db }) {
   const [query, setQuery] = useState("");
@@ -16,6 +17,7 @@ export function Sidebar({ db }: { db: Db }) {
 
   return (
     <aside className="panel panel--left">
+      <SitesSection db={db} />
       <Extractors db={db} />
 
       {/* Counted by what the search actually turned up, not the 291 in the dump — that
@@ -73,7 +75,7 @@ function Extractors({ db }: { db: Db }) {
   );
 
   return (
-    <Section name="Extractors" count={extractors.length} first>
+    <Section name="Extractors" count={extractors.length}>
       <div className="extractors">
         {extractors.map((b) => {
           const first = resourcesFor(db, b.class)[0];

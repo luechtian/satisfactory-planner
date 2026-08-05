@@ -25,7 +25,11 @@ export function SolveSheet({
   site: Site;
   exports: ReadonlyArray<{ item: string; perMinute: number }>;
   trimClocks: boolean;
-  onSolve: (setup: { targets: PlanFlow[]; recipeChoice: Record<string, string> }) => void;
+  onSolve: (setup: {
+    targets: PlanFlow[];
+    recipeChoice: Record<string, string>;
+    trimClocks: boolean;
+  }) => void;
   onClose: () => void;
 }) {
   // Both start from what the site remembers and are only written back if you go through
@@ -33,11 +37,14 @@ export function SolveSheet({
   const [draft, setDraft] = useState<Record<string, string>>(() => site.recipeChoice ?? {});
   const [targets, setTargets] = useState<PlanFlow[]>(() => site.targets);
   const [adding, setAdding] = useState("");
+  // A solve option, so it lives with the solve. It was a checkbox sitting in the panel
+  // for good, mattering for the one second a year you press this button.
+  const [trim, setTrim] = useState(trimClocks);
 
   const aimedAt = useMemo(() => ({ ...site, targets }), [site, targets]);
   const preview = useMemo(
-    () => solveSite(db, aimedAt, { trimClocks, recipeChoice: draft, exports }),
-    [db, aimedAt, trimClocks, draft, exports],
+    () => solveSite(db, aimedAt, { trimClocks: trim, recipeChoice: draft, exports }),
+    [db, aimedAt, trim, draft, exports],
   );
 
   const makeable = useMemo(
@@ -66,7 +73,7 @@ export function SolveSheet({
 
   return (
     <Sheet
-      title="Solve for targets"
+      title="Plan a chain"
       hint="Say what the site should make. The chain below is what solving will build — change any step and the rest follows, since a different recipe needs different inputs."
       onClose={onClose}
       foot={
@@ -85,9 +92,9 @@ export function SolveSheet({
           <button
             className="btn btn--primary"
             disabled={!targets.length && !exports.length}
-            onClick={() => onSolve({ targets, recipeChoice: draft })}
+            onClick={() => onSolve({ targets, recipeChoice: draft, trimClocks: trim })}
           >
-            Solve
+            Plan
           </button>
         </>
       }
@@ -140,6 +147,11 @@ export function SolveSheet({
           Add
         </button>
       </div>
+
+      <label className="check" title="Off: whole buildings at 100%, surplus accepted.">
+        <input type="checkbox" checked={trim} onChange={(e) => setTrim(e.target.checked)} />
+        underclock to avoid surplus
+      </label>
 
       <h4 className="sheet__group-title">Chain</h4>
       {preview.diverged && (

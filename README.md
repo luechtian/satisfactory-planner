@@ -36,6 +36,10 @@ shortfall, and see the lot on an **All sites** page: a map of which site feeds w
 power per group, raw extraction rolled up, and every item that crosses a boundary sorted
 into what nothing covers, what could be routed, and what is simply spare.
 
+The sidebar keeps the same picture to hand while you work: every site under its group with
+its power draw, a red count on any that has gone short, and the actual items on hover. You
+should not have to leave the site you are on to find out another one broke.
+
 **Draws the belts, or lets you.** One building feeding one other gets a plain arrow; where
 several make an item and several take it, they meet at a manifold. Drag between ports to
 wire something specific — that is how you say two water extractors are separate
@@ -46,7 +50,7 @@ You can wire straight to a manifold too, which puts that building on the pool an
 both its arms rather than one netted figure. Manifolds, imports and exports can all be
 dragged where you want them; **Tidy layout** puts them back.
 
-**Shows its working before it rewrites anything.** **Solve for targets** is where you say
+**Shows its working before it rewrites anything.** **Plan a chain** is where you say
 what the site should make, and it lays out the chain it is about to build — every step, the
 recipe making it, its rate, its building and its inputs — and lets you change any of them
 first.

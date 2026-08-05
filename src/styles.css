@@ -834,3 +834,63 @@ button, input, select { font: inherit; color: inherit; }
 /* How far a surplus runs past what was asked for. Sits under the number rather than
    beside it, because the column is narrow and the number is what you scan for. */
 .bal__note { font-size: .66rem; font-weight: 400; white-space: nowrap; }
+
+/* Solve is the button of the panel; Tidy rides along at a third of the width because it
+   is reached for rarely and does not deserve a row. */
+.panel__actions { display: grid; grid-template-columns: 2fr 1fr; gap: .4rem; align-items: stretch; }
+.panel__actions .btn { white-space: nowrap; }
+
+/* ------------------------------------------------------------------ sites */
+
+.sitelist { display: flex; flex-direction: column; gap: .1rem; }
+.sitelist + .sitelist { margin-top: .45rem; }
+.sitelist__group {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--bg-3);
+  padding: .2rem .1rem .15rem;
+  cursor: pointer;
+  text-align: left;
+  font-size: .64rem;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-weight: 600;
+  color: var(--muted);
+}
+.sitelist__group:hover { color: var(--fg); }
+.sitelist__caret { font-size: .6rem; }
+/* Pushes the power reading to the right edge, with the badge riding just before it. */
+.sitelist__groupname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sitelist__site {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: .4rem;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: .28rem .35rem;
+  cursor: pointer;
+  font-size: .82rem;
+}
+.sitelist__site:hover { background: var(--bg-3); }
+.sitelist__site--on { background: var(--bg-3); border-color: var(--line); font-weight: 600; }
+.sitelist__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sitelist__mw { font-size: .7rem; font-variant-numeric: tabular-nums; }
+/* Shortages only. A count is the signal; the tooltip carries what they actually are. */
+.sitelist__short {
+  min-width: 1.1rem;
+  text-align: center;
+  background: var(--neg);
+  color: var(--bg);
+  border-radius: 20px;
+  padding: 0 .3rem;
+  font-size: .64rem;
+  font-weight: 700;
+}

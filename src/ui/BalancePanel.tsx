@@ -85,33 +85,41 @@ export function BalancePanel({
         <span className="muted">{fmt(result.totalPowerMW, 1)} MW</span>
       </div>
 
-      <button
-        className="btn btn--primary"
-        // Never disabled: what to solve for is stated inside, so gating the button on
-        // having already stated it elsewhere locked you out of the only place you could.
-        // Opens the chain for review rather than rewriting the site on the spot — the
-        // recipes it will use are only knowable once the chain is worked out, and this
-        // is the one moment choosing between them changes anything.
-        onClick={() => setSolving(true)}
-      >
-        Solve for targets
-        {pinCount > 0 && <span className="bal__count">{pinCount} pinned</span>}
-      </button>
-      <label className="check" title="Off: whole buildings at 100%, surplus accepted.">
-        <input
-          type="checkbox" checked={trimClocks}
-          onChange={(e) => setTrimClocks(e.target.checked)}
-        />
-        underclock to avoid surplus
-      </label>
-      <button className="btn" disabled={!site.nodes.length} onClick={() => tidy(db)}>
-        Tidy layout
-      </button>
+      {/* Tidy is reached for rarely, so it rides along beside Solve at a third of the
+          width instead of taking a row of its own. */}
+      <div className="panel__actions">
+        <button
+          className="btn btn--primary"
+          // Never disabled: what to solve for is stated inside, so gating the button on
+          // having already stated it elsewhere locked you out of the only place you could.
+          // Opens the chain for review rather than rewriting the site on the spot — the
+          // recipes it will use are only knowable once the chain is worked out, and this
+          // is the one moment choosing between them changes anything.
+          onClick={() => setSolving(true)}
+        >
+          {/* Ellipsis because it opens a dialog rather than rewriting the site where
+              you stand — "Solve for targets" named the solver and a thing that now
+              only exists inside the dialog, so it described nothing you could see. */}
+          Plan a chain…
+          {pinCount > 0 && <span className="bal__count">{pinCount} pinned</span>}
+        </button>
+        <button
+          className="btn"
+          disabled={!site.nodes.length}
+          title="Re-flow the whole site: layered left to right, derived nodes back beside what feeds them"
+          onClick={() => tidy(db)}
+        >
+          Tidy
+        </button>
+      </div>
       {solving && (
         <SolveSheet
           db={db} site={site} exports={exports} trimClocks={trimClocks}
           onClose={() => setSolving(false)}
           onSolve={(setup) => {
+            // A preference rather than plan data, so it is set outright — no undo step,
+            // and it sticks for the next solve the way it always did.
+            setTrimClocks(setup.trimClocks);
             const r = solve(db, setup);
             setSolving(false);
             setStatus(

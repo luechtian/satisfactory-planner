@@ -39,9 +39,15 @@ interface PlanState {
   collapsedGroups: string[];
   toggleGroup: (name: string) => void;
   /**
-   * Balance-panel sections folded shut, by heading. Kept here rather than in the panel
-   * so a fold survives switching sites — refolding on every tab change would be worse
-   * than not being able to fold at all.
+   * Anything folded shut in a side panel, by key — a section heading, or a group inside
+   * one. Kept here rather than in the components so a fold survives switching sites;
+   * refolding on every tab change would be worse than not being able to fold at all.
+   *
+   * Keys are the heading text, so callers whose headings could collide with a section's
+   * namespace them: site groups use `Sites/<group>`. Separate from `collapsedGroups`,
+   * which is the tab bar — folding a run of tabs and folding a list in the sidebar are
+   * different acts under different pressure, and tying them together would mean tidying
+   * one place silently rearranged another.
    */
   collapsedSections: string[];
   toggleSection: (name: string) => void;
