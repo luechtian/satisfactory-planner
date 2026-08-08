@@ -52,6 +52,22 @@ in `producersOf` is load-bearing, not cosmetic: index 0 must be "the obvious way
 (primary product beats byproduct, standard beats alternate), and the solver's default recipe choice
 reads straight off it.
 
+**Generator fuel recipes are synthesised, not extracted.** Burning fuel is a building property in
+the dump (`mFuel`), not an `FGRecipe`, so `build_fuel_recipes` derives one recipe per generator/fuel
+pair from energy content — a fuel unit is 1 item or 1 m³, and `durationSec` is the MJ in it divided
+by `mPowerProduction`. Without them nothing anywhere produces Uranium or Plutonium Waste, and an
+item with no producer is invisible to the solver *and* to the import/target pickers, which offer
+only what something can make or mine. Consequences worth knowing:
+
+- Recipe classes (`Recipe_Burn_<Fuel>_C`) end up in saved plans, so they must stay stable; the
+  script exits rather than let two generators collide on one name.
+- The non-nuclear generators yield **nothing** — `products: []` — which every consumer already
+  tolerates (`chosen`, `solveExact` and `chain` all key off `products[0]` and skip them).
+- Generator **power is deliberately not modelled**: `powerMW` is 0 and `powerProductionMW` is
+  recorded but unused, because power crosses site boundaries on one global grid rather than
+  belonging to a per-site total. Until that changes, a solve zeroes generators nothing demands
+  output from — a coal plant is only ever kept alive by hand.
+
 Everything downstream is derived per render from `plan` + `db`:
 
 ```

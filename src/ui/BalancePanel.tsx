@@ -369,11 +369,19 @@ function FlowEditor({
   onRemove: (k: FlowKind, id: string) => void;
 }) {
   const [pick, setPick] = useState("");
-  // Only items something can actually make or mine are worth offering.
+  // Anything a recipe touches, from either side. Producers alone are too narrow for an
+  // import: Leaves and Wood feed a Biomass Burner but are foraged rather than made, so
+  // filtering on producers left no way to say a belt of them arrives.
   const options = useMemo(
     () =>
       Object.values(db.items)
-        .filter((i) => (db.producersOf[i.class]?.length || i.isRawResource) && (onlyItems?.(i) ?? true))
+        .filter(
+          (i) =>
+            (db.producersOf[i.class]?.length ||
+              db.consumersOf[i.class]?.length ||
+              i.isRawResource) &&
+            (onlyItems?.(i) ?? true),
+        )
         .sort((a, b) => a.name.localeCompare(b.name)),
     [db, onlyItems],
   );

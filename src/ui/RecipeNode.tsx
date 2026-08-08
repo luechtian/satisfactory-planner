@@ -75,6 +75,9 @@ export function RecipeNode({ data, selected }: NodeProps & { data: RecipeNodeDat
               <Handle type="source" position={Position.Right} id={`out-${p.item}`} />
             </li>
           ))}
+          {/* Generators burning a fuel that leaves no waste — Coal, Fuel, Biomass — make
+              nothing at all, and an empty column reads as a rendering fault. */}
+          {!recipe.products.length && <li className="port port--none">no outputs</li>}
         </ul>
       </div>
 

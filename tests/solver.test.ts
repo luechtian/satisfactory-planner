@@ -366,6 +366,62 @@ describe("what each site is short of and has spare", () => {
   });
 });
 
+describe("generators burning fuel", () => {
+  // Burning is a building property in the game dump, not an FGRecipe, so these recipes
+  // exist only because extract_docs.py synthesises them. Before that, nothing anywhere
+  // produced either waste and a nuclear chain could not be planned at all.
+  it("makes waste at the rate the game does", () => {
+    const s = site({ nodes: [building("Burn Uranium Fuel Rod", 1)] });
+    expect(net(s, "Uranium Fuel Rod")).toBe(-0.2);
+    expect(net(s, "Water")).toBe(-240);
+    expect(net(s, "Uranium Waste")).toBe(10);
+
+    const p = site({ nodes: [building("Burn Plutonium Fuel Rod", 1)] });
+    expect(net(p, "Plutonium Fuel Rod")).toBeCloseTo(-0.1, 9);
+    expect(net(p, "Plutonium Waste")).toBe(1);
+  });
+
+  it("burns a fuel that leaves nothing behind", () => {
+    const s = site({ nodes: [building("Burn Coal", 8)] });
+    expect(net(s, "Coal")).toBe(-120);
+    expect(net(s, "Water")).toBe(-360);
+    expect(db.recipeByClass[recipe("Burn Coal")].products).toEqual([]);
+  });
+
+  it("power is not modelled yet, so a generator contributes none", () => {
+    const s = site({ nodes: [building("Burn Uranium Fuel Rod", 4)] });
+    expect(evaluateSite(db, s).totalPowerMW).toBe(0);
+  });
+
+  it("offers the plant as the way to get waste, and solves the chain through it", () => {
+    expect(alternativesFor(db, item("Uranium Waste")).map((r) => r.name)).toEqual([
+      "Burn Uranium Fuel Rod",
+    ]);
+
+    // 100 Uranium Waste/min is 10 plants burning 2 rods/min, and a Manufacturer makes
+    // 0.4 — so the whole uranium chain hangs off the waste, which is the point.
+    const s = site({ targets: [{ id: "t", item: item("Uranium Waste"), perMinute: 100 }] });
+    const solved = solveSite(db, s, { autoExtractors: false });
+    const built = counts(db, s, solved);
+    expect(built["Burn Uranium Fuel Rod"]).toBe(10);
+    expect(built["Uranium Fuel Rod"]).toBe(5);
+    expect(built["Encased Uranium Cell"]).toBe(4);
+    expect(solved.feeds.map((f) => f.item)).not.toContain(item("Uranium Waste"));
+  });
+
+  it("leaves the plant out when the waste is bussed in from a power site", () => {
+    // Waste is a byproduct of making power somewhere else, so importing it must stop
+    // the solver building reactors of its own to farm it.
+    const s = site({
+      targets: [{ id: "t", item: item("Non-Fissile Uranium"), perMinute: 100 }],
+      imports: [{ id: "i", item: item("Uranium Waste"), perMinute: 300 }],
+    });
+    const built = counts(db, s, solveSite(db, s, { autoExtractors: false }));
+    expect(built["Burn Uranium Fuel Rod"]).toBeUndefined();
+    expect(built["Non-Fissile Uranium"]).toBe(2); // 50/min a Blender
+  });
+});
+
 describe("recipes that recycle their own input", () => {
   it("nets Encased Uranium Cell to a single side of the acid balance", () => {
     const s = site({ nodes: [building("Encased Uranium Cell", 1)] });

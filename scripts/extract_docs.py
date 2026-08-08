@@ -9,6 +9,11 @@ Two things worth knowing about the raw data:
   - Plenty of "recipes" build buildings or paint colours; only those produced
     in an actual manufacturer are production recipes.
 
+Generators carry no FGRecipe at all — burning fuel is a building property
+(mFuel), not a recipe — so their fuel entries are synthesised into recipes here.
+Without that, Uranium Waste and Plutonium Waste have no producer anywhere in the
+dataset and cannot be planned, imported or exported.
+
 Usage:
     python scripts/extract_docs.py [docs.json] [-o public/data.json]
 """
@@ -37,6 +42,9 @@ MANUFACTURER_CLASSES = ("FGBuildableManufacturer", "FGBuildableManufacturerVaria
 EXTRACTOR_CLASSES = (
     "FGBuildableResourceExtractor", "FGBuildableWaterPump", "FGBuildableFrackingExtractor",
 )
+# The Geothermal Generator is deliberately absent: it burns nothing, so there is no
+# material flow to plan and it would only ever be an empty node.
+GENERATOR_CLASSES = ("FGBuildableGeneratorFuel", "FGBuildableGeneratorNuclear")
 FORMS = {"RF_SOLID": "solid", "RF_LIQUID": "liquid", "RF_GAS": "gas"}
 
 
@@ -99,16 +107,22 @@ def build_items(by_native):
 
 def build_buildings(by_native, items):
     buildings = {}
-    for key in MANUFACTURER_CLASSES + EXTRACTOR_CLASSES:
+    for key in MANUFACTURER_CLASSES + EXTRACTOR_CLASSES + GENERATOR_CLASSES:
         for c in by_native.get(key, []):
             is_extractor = key in EXTRACTOR_CLASSES
+            is_generator = key in GENERATOR_CLASSES
+            kind = "extractor" if is_extractor else "generator" if is_generator else "manufacturer"
             b = {
                 "class": c["ClassName"],
                 "name": c["mDisplayName"],
-                "kind": "extractor" if is_extractor else "manufacturer",
+                "kind": kind,
+                # A generator's mPowerConsumption is 0; what it makes is mPowerProduction,
+                # kept below so power generation can be modelled without a re-extract.
                 "powerMW": num(c.get("mPowerConsumption")),
                 "powerExponent": num(c.get("mPowerConsumptionExponent"), 1.6),
             }
+            if is_generator:
+                b["powerProductionMW"] = num(c.get("mPowerProduction"))
             if is_extractor:
                 per_cycle = num(c.get("mItemsPerCycle"))
                 cycle = num(c.get("mExtractCycleTime"))
@@ -171,7 +185,80 @@ def build_recipes(by_native, items, buildings):
             "variablePowerConstant": num(c.get("mVariablePowerConsumptionConstant")),
             "variablePowerFactor": num(c.get("mVariablePowerConsumptionFactor")),
         })
-    return sorted(recipes, key=lambda r: (r["alternate"], r["name"]))
+    return recipes
+
+
+def build_fuel_recipes(by_native, items, buildings):
+    """Turn each generator's mFuel entry into a recipe: fuel (+ water) -> waste.
+
+    A generator has no FGRecipe, so nothing else in the dump says a Nuclear Power
+    Plant turns Uranium Fuel Rods into Uranium Waste. Everything is derived from
+    energy content, which is how the game runs them too:
+
+        one "cycle" burns one fuel unit — 1 item, or 1 m^3 of a fluid
+        durationSec = MJ in that unit / mPowerProduction (MW, i.e. MJ/s)
+
+    That reproduces the wiki numbers exactly: a rod holds 750,000 MJ and the plant
+    makes 2500 MW, so 300 s a rod, 0.2 rods/min, 10 Uranium Waste/min.
+    """
+    recipes = []
+    for key in GENERATOR_CLASSES:
+        for c in by_native.get(key, []):
+            gen = c["ClassName"]
+            power = num(c.get("mPowerProduction"))
+            if gen not in buildings or power <= 0:
+                continue
+            # mSupplementalToPowerRatio is litres per MJ, so litres/min = MW * ratio * 60.
+            supplemental_lpm = power * num(c.get("mSupplementalToPowerRatio")) * 60.0
+
+            for fuel in c.get("mFuel") or []:
+                fuel_cls = fuel.get("mFuelClass")
+                item = items.get(fuel_cls)
+                if not item or not item["energyMJ"]:
+                    continue
+                # Fluid energy is per litre while a fluid unit here is 1 m^3.
+                is_fluid = item["form"] in ("liquid", "gas")
+                duration = item["energyMJ"] * (1000.0 if is_fluid else 1.0) / power
+                per_min = 60.0 / duration
+
+                ingredients = [{"item": fuel_cls, "amount": 1.0, "perMinute": round(per_min, 6)}]
+                supp = fuel.get("mSupplementalResourceClass")
+                if supp and supp in items and supplemental_lpm:
+                    rate = supplemental_lpm / (1000.0 if items[supp]["form"] != "solid" else 1.0)
+                    ingredients.append({
+                        "item": supp,
+                        "amount": round(rate / per_min, 6),
+                        "perMinute": round(rate, 6),
+                    })
+
+                products = []
+                by_cls, by_amount = fuel.get("mByproduct"), num(fuel.get("mByproductAmount"))
+                if by_cls in items and by_amount:
+                    products.append({
+                        "item": by_cls,
+                        "amount": by_amount,
+                        "perMinute": round(by_amount * per_min, 6),
+                    })
+
+                # Fuels do not currently overlap between generators, so the fuel alone
+                # names the recipe. Fail loudly if a game update changes that rather
+                # than silently dropping one — these class names end up in saved plans.
+                cls = f"Recipe_Burn_{fuel_cls.removeprefix('Desc_').removesuffix('_C')}_C"
+                if any(r["class"] == cls for r in recipes):
+                    sys.exit(f"Two generators both burn {fuel_cls}; {cls} is no longer unique.")
+
+                recipes.append({
+                    "class": cls,
+                    "name": f"Burn {item['name']}",
+                    "alternate": False,
+                    "durationSec": round(duration, 6),
+                    "building": gen,
+                    "ingredients": ingredients,
+                    "products": products,
+                    "variablePowerConstant": 0.0,
+                    "variablePowerFactor": 0.0,
+                })
+    return recipes
 
 
 def main():
@@ -190,6 +277,8 @@ def main():
     items = build_items(by_native)
     buildings = build_buildings(by_native, items)
     recipes = build_recipes(by_native, items, buildings)
+    recipes += build_fuel_recipes(by_native, items, buildings)
+    recipes.sort(key=lambda r: (r["alternate"], r["name"]))
 
     # Drop items nothing can make, extract or consume.
     used = {r["item"] for rec in recipes for r in rec["ingredients"] + rec["products"]}

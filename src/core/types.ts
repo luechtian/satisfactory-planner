@@ -15,9 +15,17 @@ export interface Item {
 export interface Building {
   class: string;
   name: string;
-  kind: "manufacturer" | "extractor";
+  /**
+   * Generators are here because burning fuel is a material flow like any other — it is
+   * the only thing in the game that makes Uranium and Plutonium Waste. Their *power* is
+   * not modelled yet: a generator's `powerMW` is 0, since power crosses site boundaries
+   * on one global grid and so does not belong in a per-site total.
+   */
+  kind: "manufacturer" | "extractor" | "generator";
   powerMW: number;
   powerExponent: number;
+  /** generators only: MW put onto the grid at 100% clock. Recorded, not yet used. */
+  powerProductionMW?: number;
   /** extractors only: yield at a normal-purity node, 100% clock */
   baseRatePerMin?: number | null;
   allowedResources?: string[];

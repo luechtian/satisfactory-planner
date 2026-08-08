@@ -1666,6 +1666,38 @@
     "liquid"
    ],
    "baseRatePerMin": 60.0
+  },
+  "Build_GeneratorBiomass_Automated_C": {
+   "class": "Build_GeneratorBiomass_Automated_C",
+   "name": "Biomass Burner",
+   "kind": "generator",
+   "powerMW": 0.0,
+   "powerExponent": 1.6,
+   "powerProductionMW": 30.0
+  },
+  "Build_GeneratorCoal_C": {
+   "class": "Build_GeneratorCoal_C",
+   "name": "Coal-Powered Generator",
+   "kind": "generator",
+   "powerMW": 0.0,
+   "powerExponent": 1.6,
+   "powerProductionMW": 75.0
+  },
+  "Build_GeneratorFuel_C": {
+   "class": "Build_GeneratorFuel_C",
+   "name": "Fuel-Powered Generator",
+   "kind": "generator",
+   "powerMW": 0.0,
+   "powerExponent": 1.6,
+   "powerProductionMW": 250.0
+  },
+  "Build_GeneratorNuclear_C": {
+   "class": "Build_GeneratorNuclear_C",
+   "name": "Nuclear Power Plant",
+   "kind": "generator",
+   "powerMW": 0.0,
+   "powerExponent": 1.6,
+   "powerProductionMW": 2500.0
   }
  },
  "recipes": [
@@ -2352,6 +2384,337 @@
    ],
    "variablePowerConstant": 0.0,
    "variablePowerFactor": 1.0
+  },
+  {
+   "class": "Recipe_Burn_GenericBiomass_C",
+   "name": "Burn Biomass",
+   "alternate": false,
+   "durationSec": 6.0,
+   "building": "Build_GeneratorBiomass_Automated_C",
+   "ingredients": [
+    {
+     "item": "Desc_GenericBiomass_C",
+     "amount": 1.0,
+     "perMinute": 10.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_Coal_C",
+   "name": "Burn Coal",
+   "alternate": false,
+   "durationSec": 4.0,
+   "building": "Build_GeneratorCoal_C",
+   "ingredients": [
+    {
+     "item": "Desc_Coal_C",
+     "amount": 1.0,
+     "perMinute": 15.0
+    },
+    {
+     "item": "Desc_Water_C",
+     "amount": 3.0,
+     "perMinute": 45.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_CompactedCoal_C",
+   "name": "Burn Compacted Coal",
+   "alternate": false,
+   "durationSec": 8.4,
+   "building": "Build_GeneratorCoal_C",
+   "ingredients": [
+    {
+     "item": "Desc_CompactedCoal_C",
+     "amount": 1.0,
+     "perMinute": 7.142857
+    },
+    {
+     "item": "Desc_Water_C",
+     "amount": 6.3,
+     "perMinute": 45.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_FicsoniumFuelRod_C",
+   "name": "Burn Ficsonium Fuel Rod",
+   "alternate": false,
+   "durationSec": 60.0,
+   "building": "Build_GeneratorNuclear_C",
+   "ingredients": [
+    {
+     "item": "Desc_FicsoniumFuelRod_C",
+     "amount": 1.0,
+     "perMinute": 1.0
+    },
+    {
+     "item": "Desc_Water_C",
+     "amount": 240.0,
+     "perMinute": 240.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_LiquidFuel_C",
+   "name": "Burn Fuel",
+   "alternate": false,
+   "durationSec": 3.0,
+   "building": "Build_GeneratorFuel_C",
+   "ingredients": [
+    {
+     "item": "Desc_LiquidFuel_C",
+     "amount": 1.0,
+     "perMinute": 20.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_IonizedFuel_C",
+   "name": "Burn Ionized Fuel",
+   "alternate": false,
+   "durationSec": 20.0,
+   "building": "Build_GeneratorFuel_C",
+   "ingredients": [
+    {
+     "item": "Desc_IonizedFuel_C",
+     "amount": 1.0,
+     "perMinute": 3.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_Leaves_C",
+   "name": "Burn Leaves",
+   "alternate": false,
+   "durationSec": 0.5,
+   "building": "Build_GeneratorBiomass_Automated_C",
+   "ingredients": [
+    {
+     "item": "Desc_Leaves_C",
+     "amount": 1.0,
+     "perMinute": 120.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_LiquidBiofuel_C",
+   "name": "Burn Liquid Biofuel",
+   "alternate": false,
+   "durationSec": 3.0,
+   "building": "Build_GeneratorFuel_C",
+   "ingredients": [
+    {
+     "item": "Desc_LiquidBiofuel_C",
+     "amount": 1.0,
+     "perMinute": 20.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_Mycelia_C",
+   "name": "Burn Mycelia",
+   "alternate": false,
+   "durationSec": 0.666667,
+   "building": "Build_GeneratorBiomass_Automated_C",
+   "ingredients": [
+    {
+     "item": "Desc_Mycelia_C",
+     "amount": 1.0,
+     "perMinute": 90.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_PackagedBiofuel_C",
+   "name": "Burn Packaged Liquid Biofuel",
+   "alternate": false,
+   "durationSec": 25.0,
+   "building": "Build_GeneratorBiomass_Automated_C",
+   "ingredients": [
+    {
+     "item": "Desc_PackagedBiofuel_C",
+     "amount": 1.0,
+     "perMinute": 2.4
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_PetroleumCoke_C",
+   "name": "Burn Petroleum Coke",
+   "alternate": false,
+   "durationSec": 2.4,
+   "building": "Build_GeneratorCoal_C",
+   "ingredients": [
+    {
+     "item": "Desc_PetroleumCoke_C",
+     "amount": 1.0,
+     "perMinute": 25.0
+    },
+    {
+     "item": "Desc_Water_C",
+     "amount": 1.8,
+     "perMinute": 45.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_PlutoniumFuelRod_C",
+   "name": "Burn Plutonium Fuel Rod",
+   "alternate": false,
+   "durationSec": 600.0,
+   "building": "Build_GeneratorNuclear_C",
+   "ingredients": [
+    {
+     "item": "Desc_PlutoniumFuelRod_C",
+     "amount": 1.0,
+     "perMinute": 0.1
+    },
+    {
+     "item": "Desc_Water_C",
+     "amount": 2400.0,
+     "perMinute": 240.0
+    }
+   ],
+   "products": [
+    {
+     "item": "Desc_PlutoniumWaste_C",
+     "amount": 10.0,
+     "perMinute": 1.0
+    }
+   ],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_RocketFuel_C",
+   "name": "Burn Rocket Fuel",
+   "alternate": false,
+   "durationSec": 14.4,
+   "building": "Build_GeneratorFuel_C",
+   "ingredients": [
+    {
+     "item": "Desc_RocketFuel_C",
+     "amount": 1.0,
+     "perMinute": 4.166667
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_Biofuel_C",
+   "name": "Burn Solid Biofuel",
+   "alternate": false,
+   "durationSec": 15.0,
+   "building": "Build_GeneratorBiomass_Automated_C",
+   "ingredients": [
+    {
+     "item": "Desc_Biofuel_C",
+     "amount": 1.0,
+     "perMinute": 4.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_LiquidTurboFuel_C",
+   "name": "Burn Turbofuel",
+   "alternate": false,
+   "durationSec": 8.0,
+   "building": "Build_GeneratorFuel_C",
+   "ingredients": [
+    {
+     "item": "Desc_LiquidTurboFuel_C",
+     "amount": 1.0,
+     "perMinute": 7.5
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_NuclearFuelRod_C",
+   "name": "Burn Uranium Fuel Rod",
+   "alternate": false,
+   "durationSec": 300.0,
+   "building": "Build_GeneratorNuclear_C",
+   "ingredients": [
+    {
+     "item": "Desc_NuclearFuelRod_C",
+     "amount": 1.0,
+     "perMinute": 0.2
+    },
+    {
+     "item": "Desc_Water_C",
+     "amount": 1200.0,
+     "perMinute": 240.0
+    }
+   ],
+   "products": [
+    {
+     "item": "Desc_NuclearWaste_C",
+     "amount": 50.0,
+     "perMinute": 10.0
+    }
+   ],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
+  },
+  {
+   "class": "Recipe_Burn_Wood_C",
+   "name": "Burn Wood",
+   "alternate": false,
+   "durationSec": 3.333333,
+   "building": "Build_GeneratorBiomass_Automated_C",
+   "ingredients": [
+    {
+     "item": "Desc_Wood_C",
+     "amount": 1.0,
+     "perMinute": 18.0
+    }
+   ],
+   "products": [],
+   "variablePowerConstant": 0.0,
+   "variablePowerFactor": 0.0
   },
   {
    "class": "Recipe_Cable_C",
